@@ -12,8 +12,6 @@ function ProtectedRoute({ user, children }) {
   return children
 }
 
-// When a Google OAuth user lands back, ensure they have a users table record.
-// Generates a username from their email (letters+numbers, max 20 chars) + 4-digit suffix.
 async function ensureUserRecord(authUser) {
   const { data: existing } = await supabase
     .from('users').select('id').eq('id', authUser.id).maybeSingle()
@@ -25,14 +23,11 @@ async function ensureUserRecord(authUser) {
     .toLowerCase()
     .slice(0, 16)
 
-  // retry up to 10 times — each attempt picks a fresh 4-digit suffix
-  // so even if the base collides, a unique slot will be found quickly
   for (let i = 0; i < 10; i++) {
     const suffix = Math.floor(1000 + Math.random() * 9000)
     const { error } = await supabase
       .from('users').insert({ id: authUser.id, username: `${base}${suffix}` })
     if (!error) return
-    // only retry on unique-constraint violations
     if (!error.message?.includes('unique') && !error.code?.includes('23505')) throw error
   }
 }
@@ -60,14 +55,13 @@ export default function App() {
   async function handleLogout() {
     await supabase.auth.signOut()
     setUser(null)
-    window.location.href = '/'
   }
 
   const openAuth = (mode) => setAuthModal(mode)
   const closeAuth = () => setAuthModal(null)
-  const onAuthSuccess = (u) => {
-    setUser(u)
-    setTimeout(() => { closeAuth(); window.location.href = '/dashboard' }, 300)
+  const onAuthSuccess = () => {
+    closeAuth()
+    window.location.href = '/dashboard'
   }
 
   if (user === undefined) {
@@ -85,9 +79,10 @@ export default function App() {
       )}
 
       <Routes>
-        <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing onAuthClick={openAuth} />} />
+        {/* Landing is always accessible — logged-in users see it with a different nav */}
+        <Route path="/" element={<Landing user={user} onAuthClick={openAuth} onLogout={handleLogout} />} />
         <Route path="/dashboard" element={<ProtectedRoute user={user}><Dashboard user={user} onLogout={handleLogout} /></ProtectedRoute>} />
-        <Route path="/leaderboard" element={<LeaderboardPage onAuthClick={openAuth} />} />
+        <Route path="/leaderboard" element={<LeaderboardPage user={user} onAuthClick={openAuth} onLogout={handleLogout} />} />
         <Route path="/u/:username" element={<Profile />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

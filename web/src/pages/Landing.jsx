@@ -213,7 +213,7 @@ function AnimatedLeaderboard({ rows, loading }) {
 }
 
 // ── main component ─────────────────────────────────────────────────────────────
-export default function Landing({ onAuthClick }) {
+export default function Landing({ user, onAuthClick, onLogout }) {
   const [leaderboard, setLeaderboard] = useState([])
   const [lbLoading, setLbLoading] = useState(true)
   const [graveyard, setGraveyard] = useState(
@@ -259,13 +259,28 @@ export default function Landing({ onAuthClick }) {
             onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = '#64748b'}>
             The Void
           </a>
-          <button onClick={() => onAuthClick('login')} style={{ fontSize: '0.875rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px', borderRadius: 8 }}
-            onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = '#64748b'}>
-            Log in
-          </button>
-          <button onClick={() => onAuthClick('signup')} style={{ fontSize: '0.875rem', fontWeight: 700, color: '#fff', cursor: 'pointer', padding: '9px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-            Get started
-          </button>
+          {user ? (
+            <>
+              <a href="/dashboard" style={{ fontSize: '0.875rem', color: '#64748b', textDecoration: 'none', padding: '6px 14px' }}
+                onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = '#64748b'}>
+                Dashboard
+              </a>
+              <button onClick={onLogout} style={{ fontSize: '0.875rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px' }}
+                onMouseEnter={e => e.target.style.color = '#ef4444'} onMouseLeave={e => e.target.style.color = '#64748b'}>
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => onAuthClick('login')} style={{ fontSize: '0.875rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px', borderRadius: 8 }}
+                onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = '#64748b'}>
+                Log in
+              </button>
+              <button onClick={() => user ? window.location.href = '/dashboard' : onAuthClick('signup')} style={{ fontSize: '0.875rem', fontWeight: 700, color: '#fff', cursor: 'pointer', padding: '9px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                Get started
+              </button>
+            </>
+          )}
         </div>
       </nav>
 
@@ -322,10 +337,10 @@ export default function Landing({ onAuthClick }) {
             <motion.button
               whileHover={{ scale: 1.04, filter: 'brightness(1.12)' }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => onAuthClick('signup')}
+              onClick={() => user ? window.location.href = '/dashboard' : onAuthClick('signup')}
               style={{ fontWeight: 700, color: '#fff', fontSize: '1rem', cursor: 'pointer', padding: '14px 36px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 0 50px rgba(124,58,237,0.6), 0 4px 24px rgba(0,0,0,0.5)' }}
             >
-              Start Wasting Tokens
+              {user ? 'Go to Dashboard' : 'Start Wasting Tokens'}
             </motion.button>
             <motion.a
               whileHover={{ scale: 1.03, borderColor: 'rgba(124,58,237,0.5)', color: '#fff' }}
@@ -476,7 +491,7 @@ export default function Landing({ onAuthClick }) {
                 <motion.button
                   whileHover={{ scale: 1.04, filter: 'brightness(1.12)' }}
                   whileTap={{ scale: 0.97 }}
-                  onClick={() => onAuthClick('signup')}
+                  onClick={() => user ? window.location.href = '/dashboard' : onAuthClick('signup')}
                   style={{ fontWeight: 700, color: '#fff', fontSize: '1.05rem', cursor: 'pointer', padding: '16px 44px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', boxShadow: '0 0 50px rgba(124,58,237,0.55)' }}
                 >
                   Start Wasting Tokens
