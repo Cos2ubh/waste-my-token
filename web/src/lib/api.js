@@ -1,174 +1,82 @@
 import { supabase } from './supabase'
 
-// ── leaderboard ──────────────────────────────────────────────────────────────
-
+// ── leaderboard (reads from server — joins burns → void_sessions → users) ─────
 export async function fetchLeaderboard(period = 'alltime', limit = 50) {
-  const since =
-    period === 'weekly'
-      ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      : null
-
-  let query = supabase
-    .from('stats')
-    .select(`
-      tokens_wasted,
-      agent_name,
-      recorded_at,
-      domains (
-        domain_url,
-        users ( username )
-      )
-    `)
-
-  if (since) query = query.gte('recorded_at', since)
-
-  const { data, error } = await query
-  if (error) throw error
-
-  // Aggregate by username
-  const map = {}
-  for (const row of data ?? []) {
-    const username = row.domains?.users?.username
-    if (!username) continue
-    if (!map[username]) map[username] = { username, total: 0, agents: {} }
-    map[username].total += Number(row.tokens_wasted)
-    map[username].agents[row.agent_name] =
-      (map[username].agents[row.agent_name] ?? 0) + Number(row.tokens_wasted)
-  }
-
-  const ranked = Object.values(map)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, limit)
-    .map((u, i) => ({
-      rank: i + 1,
-      username: u.username,
-      total_tokens_wasted: u.total,
-      top_agent: topKey(u.agents),
-      badges: computeBadges(u),
-    }))
-
-  return ranked
+  const res = await fetch(`/api/leaderboard?period=${period}&limit=${limit}`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
 }
 
-function topKey(obj) {
-  return Object.entries(obj).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—'
-}
-
-function computeBadges({ total, agents }) {
-  const badges = []
-  if (total >= 1_000_000_000) badges.push('1B Club')
-  if (total < 1_000_000) badges.push('Newcomer')
-  const tarpitTokens = agents['TarpitMode'] ?? 0
-  if (tarpitTokens > 0) badges.push('Tarpit King')
-  const totalAgents = Object.keys(agents).length
-  if (totalAgents >= 5) badges.push('Bot Graveyard')
-  if (badges.length === 0) badges.push('Waster')
-  return badges
-}
-
-// ── live counter ─────────────────────────────────────────────────────────────
-
+// ── live counter (all burns today, attributed + anonymous) ────────────────────
 export async function fetchTodayTotal() {
-  const since = new Date()
-  since.setHours(0, 0, 0, 0)
+  const res = await fetch('/api/stats/total')
+  if (!res.ok) throw new Error(await res.text())
+  const { tokens_wasted_today } = await res.json()
+  return tokens_wasted_today ?? 0
+}
 
-  const { data, error } = await supabase
-    .from('stats')
-    .select('tokens_wasted')
-    .gte('recorded_at', since.toISOString())
+// ── burn status for a void session ────────────────────────────────────────────
+export async function fetchBurnStatus(voidId) {
+  const res = await fetch(`/api/burn-status/${voidId}`)
+  if (!res.ok) throw new Error(await res.text())
+  return res.json() // { burned, total_tokens, burn_count }
+}
 
-  if (error) throw error
+// ── create void session ───────────────────────────────────────────────────────
+export async function createSession(id) {
+  const res = await fetch('/api/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
+}
 
-  return (data ?? []).reduce((sum, r) => sum + Number(r.tokens_wasted), 0)
+// ── claim void session after signup ──────────────────────────────────────────
+export async function claimSession(voidId, userId) {
+  const res = await fetch(`/api/claim/${voidId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+  })
+  if (!res.ok) throw new Error(await res.text())
+  return res.json()
 }
 
 // ── public profile ────────────────────────────────────────────────────────────
-
 export async function fetchProfile(username) {
   const { data: user, error: uErr } = await supabase
-    .from('users')
-    .select('id, username, created_at')
-    .eq('username', username)
-    .single()
-
+    .from('users').select('id, username, created_at').eq('username', username).single()
   if (uErr) throw uErr
 
-  const { data: domains, error: dErr } = await supabase
-    .from('domains')
-    .select('id, domain_url')
-    .eq('user_id', user.id)
+  const { data: sessions } = await supabase
+    .from('void_sessions').select('id').eq('user_id', user.id)
 
-  if (dErr) throw dErr
+  const sessionIds = (sessions ?? []).map(s => s.id)
+  let burns = [], total = 0, agents = {}
 
-  const domainIds = domains.map((d) => d.id)
-
-  const { data: stats, error: sErr } = await supabase
-    .from('stats')
-    .select('tokens_wasted, agent_name')
-    .in('domain_id', domainIds)
-
-  if (sErr) throw sErr
-
-  const agents = {}
-  let total = 0
-  for (const s of stats ?? []) {
-    total += Number(s.tokens_wasted)
-    agents[s.agent_name] = (agents[s.agent_name] ?? 0) + Number(s.tokens_wasted)
+  if (sessionIds.length) {
+    const { data: b } = await supabase
+      .from('burns').select('tokens_burned, agent_name').in('void_id', sessionIds)
+    for (const row of b ?? []) {
+      total += Number(row.tokens_burned)
+      agents[row.agent_name] = (agents[row.agent_name] ?? 0) + Number(row.tokens_burned)
+    }
+    burns = b ?? []
   }
+
+  const badges = []
+  if (total >= 1e9) badges.push('1B Club')
+  if (total < 1e6) badges.push('Newcomer')
+  if (burns.length >= 10) badges.push('Bot Graveyard')
+  if (!badges.length) badges.push('Waster')
 
   return {
     username: user.username,
     created_at: user.created_at,
     total_tokens_wasted: total,
     agents,
-    domains: domains.map((d) => d.domain_url),
-    badges: computeBadges({ total, agents }),
+    badges,
   }
-}
-
-// ── top agents — graveyard data ───────────────────────────────────────────────
-// Returns tokens wasted per agent across ALL users, merged with the known list
-// so the graveyard always shows the full enemy roster even with zero data.
-
-const KNOWN_AGENTS = [
-  'GPTBot', 'ClaudeBot', 'PerplexityBot', 'Googlebot',
-  'Bytespider', 'CCBot', 'anthropic-ai', 'cohere-ai',
-]
-
-export async function fetchTopAgents() {
-  const { data, error } = await supabase.from('stats').select('agent_name, tokens_wasted')
-  if (error) throw error
-
-  const map = {}
-  for (const r of data ?? []) {
-    map[r.agent_name] = (map[r.agent_name] ?? 0) + Number(r.tokens_wasted)
-  }
-
-  // ensure known agents always appear
-  for (const a of KNOWN_AGENTS) if (!map[a]) map[a] = 0
-
-  return Object.entries(map)
-    .map(([name, tokens]) => ({ name, tokens }))
-    .sort((a, b) => b.tokens - a.tokens)
-}
-
-// ── report (called by proxy via REST — also wired as a server route) ──────────
-
-export async function reportUsage({ api_key, agent_name, tokens_wasted }) {
-  const { data: domain, error: dErr } = await supabase
-    .from('domains')
-    .select('id')
-    .eq('api_key', api_key)
-    .single()
-
-  if (dErr || !domain) return { ok: false, status: 401 }
-
-  const { error: iErr } = await supabase.from('stats').insert({
-    domain_id: domain.id,
-    agent_name,
-    tokens_wasted,
-  })
-
-  if (iErr) return { ok: false, status: 500 }
-  return { ok: true, status: 200 }
 }
