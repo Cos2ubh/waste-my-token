@@ -205,7 +205,7 @@ export default function Dashboard({ user, onLogout }) {
       {/* header */}
       <div className="flex items-center justify-between mb-10">
         <a href="/" className="font-black text-lg tracking-tight text-white">
-          waste<span className="text-violet-500">my</span>token
+          waste<span className="text-violet-500">my</span>tokens
         </a>
         <div className="flex items-center gap-4">
           <a href="/leaderboard" className="text-sm text-slate-400 hover:text-white">Leaderboard</a>

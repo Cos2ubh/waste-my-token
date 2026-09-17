@@ -87,7 +87,7 @@ export default function Profile() {
       {/* nav */}
       <nav className="px-6 py-4 flex items-center justify-between border-b border-white/5">
         <a href="/" className="font-black text-lg tracking-tight text-white">
-          waste<span className="text-violet-500">my</span>token
+          waste<span className="text-violet-500">my</span>tokens
         </a>
         <a href="/leaderboard" className="text-sm text-slate-400 hover:text-white transition-colors">
           Leaderboard

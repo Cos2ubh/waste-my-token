@@ -35,7 +35,7 @@ export default function LeaderboardPage({ onAuthClick }) {
       <nav className="sticky top-0 z-40 px-6 py-4 flex items-center justify-between"
         style={{ background: 'rgba(5,5,8,0.9)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <a href="/" className="font-black text-lg tracking-tight text-white">
-          waste<span className="text-violet-500">my</span>token
+          waste<span className="text-violet-500">my</span>tokens
         </a>
         <div className="flex items-center gap-4">
           <button onClick={() => onAuthClick?.('login')} className="text-sm text-slate-400 hover:text-white">Log in</button>

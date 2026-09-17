@@ -20,22 +20,18 @@ function initParticle(cx, cy, forRing = false) {
       opacity: randBetween(0.4, 1),
       size: randBetween(1, 2.5),
       hue: randBetween(250, 280),
-      inward: false,
       phase: Math.random() * Math.PI * 2,
     }
   }
   const angle = Math.random() * Math.PI * 2
   const radius = randBetween(170, 340)
   return {
-    x: cx + Math.cos(angle) * radius,
-    y: cy + Math.sin(angle) * radius * 0.5,
     angle,
     radius,
     speed: randBetween(0.002, 0.007),
     opacity: randBetween(0.1, 0.6),
     size: randBetween(0.5, 1.5),
     hue: randBetween(200, 270),
-    inward: true,
     phase: Math.random() * Math.PI * 2,
     decayRate: randBetween(0.2, 0.6),
   }
@@ -48,6 +44,7 @@ export default function BlackHole({ className = '' }) {
   const particles = useRef([])
   const ringParticles = useRef([])
   const rotation = useRef(0)
+  const sizeRef = useRef({ w: 0, h: 0 })
 
   const handleMouseMove = useCallback((e) => {
     const rect = canvasRef.current?.getBoundingClientRect()
@@ -63,12 +60,14 @@ export default function BlackHole({ className = '' }) {
     if (!canvas) return
     const ctx = canvas.getContext('2d')
 
-    const resize = () => {
-      canvas.width = canvas.offsetWidth * window.devicePixelRatio
-      canvas.height = canvas.offsetHeight * window.devicePixelRatio
+    const applySize = (w, h) => {
+      if (!w || !h) return
+      sizeRef.current = { w, h }
+      canvas.width = Math.floor(w * window.devicePixelRatio)
+      canvas.height = Math.floor(h * window.devicePixelRatio)
       ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
-      const cx = canvas.offsetWidth / 2
-      const cy = canvas.offsetHeight / 2
+      const cx = w / 2
+      const cy = h / 2
       particles.current = Array.from({ length: PARTICLE_COUNT }, () =>
         initParticle(cx, cy, false)
       )
@@ -77,32 +76,32 @@ export default function BlackHole({ className = '' }) {
       )
     }
 
-    resize()
-    window.addEventListener('resize', resize)
+    // ResizeObserver fires reliably after layout, even on first render
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        applySize(width, height)
+      }
+    })
+    observer.observe(canvas)
 
     const draw = () => {
-      const w = canvas.offsetWidth
-      const h = canvas.offsetHeight
+      const { w, h } = sizeRef.current
+      if (!w || !h) {
+        animRef.current = requestAnimationFrame(draw)
+        return
+      }
       const cx = w / 2
       const cy = h / 2
 
-      // Mouse influence
       const mx = (mouse.current.x - 0.5) * 0.3
       const my = (mouse.current.y - 0.5) * 0.15
 
       ctx.clearRect(0, 0, w, h)
 
-      // Deep void background gradient
-      const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, w * 0.6)
-      bgGrad.addColorStop(0, 'rgba(5,5,8,0)')
-      bgGrad.addColorStop(0.4, 'rgba(5,5,8,0)')
-      bgGrad.addColorStop(1, 'rgba(5,5,8,0.95)')
-      ctx.fillStyle = bgGrad
-      ctx.fillRect(0, 0, w, h)
-
       rotation.current += 0.003
 
-      // ── outer drifting particles ────────────────────────────────────────
+      // outer drifting particles
       for (const p of particles.current) {
         p.angle += p.speed
         p.radius -= p.decayRate * 0.08
@@ -119,14 +118,13 @@ export default function BlackHole({ className = '' }) {
         ctx.fill()
       }
 
-      // ── accretion ring ──────────────────────────────────────────────────
+      // accretion ring
       ctx.save()
       ctx.translate(cx, cy)
       ctx.rotate(rotation.current * 0.5 + mx * 0.5)
       ctx.scale(1 + mx * 0.08, 0.35 + my * 0.05)
       ctx.translate(-cx, -cy)
 
-      // ring glow
       for (let pass = 0; pass < 3; pass++) {
         const grad = ctx.createRadialGradient(cx, cy, 75 - pass * 5, cx, cy, 170 + pass * 10)
         grad.addColorStop(0, `rgba(109,40,217,${0.05 - pass * 0.01})`)
@@ -139,7 +137,6 @@ export default function BlackHole({ className = '' }) {
         ctx.fill()
       }
 
-      // ring particles
       for (const p of ringParticles.current) {
         p.angle += p.speed * (1 + mx * 0.3)
         const wobble = Math.sin(p.phase + rotation.current * 6) * 3
@@ -155,7 +152,7 @@ export default function BlackHole({ className = '' }) {
 
       ctx.restore()
 
-      // ── event horizon — the singularity ────────────────────────────────
+      // event horizon
       const horizonGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 72)
       horizonGrad.addColorStop(0, '#000000')
       horizonGrad.addColorStop(0.75, '#000000')
@@ -167,7 +164,6 @@ export default function BlackHole({ className = '' }) {
       ctx.fillStyle = horizonGrad
       ctx.fill()
 
-      // inner purple rim
       const rimGrad = ctx.createRadialGradient(cx, cy, 60, cx, cy, 78)
       rimGrad.addColorStop(0, 'rgba(109,40,217,0)')
       rimGrad.addColorStop(0.6, 'rgba(139,92,246,0.35)')
@@ -177,7 +173,6 @@ export default function BlackHole({ className = '' }) {
       ctx.fillStyle = rimGrad
       ctx.fill()
 
-      // photon ring highlight
       ctx.beginPath()
       ctx.arc(cx, cy, 70, 0, Math.PI * 2)
       ctx.strokeStyle = 'rgba(167,139,250,0.25)'
@@ -191,7 +186,7 @@ export default function BlackHole({ className = '' }) {
 
     return () => {
       cancelAnimationFrame(animRef.current)
-      window.removeEventListener('resize', resize)
+      observer.disconnect()
     }
   }, [])
 
@@ -199,8 +194,7 @@ export default function BlackHole({ className = '' }) {
     <canvas
       ref={canvasRef}
       onMouseMove={handleMouseMove}
-      className={`w-full h-full ${className}`}
-      style={{ display: 'block' }}
+      className={`block w-full h-full ${className}`}
     />
   )
 }
