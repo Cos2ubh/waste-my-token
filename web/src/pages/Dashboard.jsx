@@ -4,48 +4,50 @@ import { supabase } from '../lib/supabase'
 import BadgeDisplay from '../components/BadgeDisplay'
 import { fetchLeaderboard } from '../lib/api'
 
-function formatTokens(n) {
-  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + 'B'
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M'
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+const EXPO = [0.22, 1, 0.36, 1]
+
+function fmt(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B'
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'
   return Number(n).toLocaleString()
 }
 
 function since(iso) {
-  const d = new Date(iso)
-  const now = new Date()
-  const diff = Math.floor((now - d) / 86400000)
+  const diff = Math.floor((Date.now() - new Date(iso)) / 86400000)
   if (diff === 0) return 'today'
   if (diff === 1) return 'yesterday'
   return `${diff} days ago`
 }
 
-function StatCard({ label, value, sub }) {
+// ── sub-components ─────────────────────────────────────────────────────────────
+
+function StatCard({ label, value }) {
   return (
-    <div className="p-5 rounded-2xl border border-white/10" style={{ background: 'rgba(255,255,255,0.03)' }}>
-      <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold">{label}</p>
-      <p className="text-3xl font-black text-white mt-1">{value}</p>
-      {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
+    <div style={{
+      padding: 'clamp(18px, 2vw, 24px)',
+      borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)',
+      background: 'rgba(255,255,255,0.03)',
+    }}>
+      <p style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 8 }}>{label}</p>
+      <p style={{ fontSize: 'clamp(1.4rem, 2.5vw, 2rem)', fontWeight: 900, color: '#fff', margin: 0 }}>{value}</p>
     </div>
   )
 }
 
 function CodeSnippet({ apiKey }) {
   const [copied, setCopied] = useState(false)
-  const code = `# Add to your proxy .env\nWMT_API_KEY=${apiKey}\nWMT_REPORT_URL=https://wastemy.token/api/report`
-
+  const code = `# Add to your proxy .env\nWMT_API_KEY=${apiKey}\nWMT_REPORT_URL=https://wastemy.tokens/api/report`
   return (
-    <div className="relative rounded-xl overflow-hidden border border-white/10" style={{ background: '#0a0a0f' }}>
-      <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
-        <span className="text-xs text-slate-500 font-mono">.env</span>
-        <button
-          onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-          className="text-xs text-violet-400 hover:text-violet-300 font-semibold transition-colors"
-        >
+    <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', background: '#08080f' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <span style={{ fontSize: '0.75rem', color: '#475569', fontFamily: 'monospace' }}>.env</span>
+        <button onClick={() => { navigator.clipboard.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+          style={{ fontSize: '0.75rem', fontWeight: 700, color: copied ? '#22c55e' : '#8b5cf6', background: 'none', border: 'none', cursor: 'pointer' }}>
           {copied ? '✓ copied' : 'copy'}
         </button>
       </div>
-      <pre className="px-4 py-4 text-sm font-mono text-slate-300 overflow-x-auto whitespace-pre">
+      <pre style={{ padding: '16px', margin: 0, fontSize: '0.85rem', fontFamily: 'ui-monospace, monospace', color: '#94a3b8', overflowX: 'auto', whiteSpace: 'pre' }}>
         {code}
       </pre>
     </div>
@@ -54,34 +56,31 @@ function CodeSnippet({ apiKey }) {
 
 function DomainRow({ domain, onDelete }) {
   const [copied, setCopied] = useState(false)
-
   return (
-    <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
-      <td className="py-3 pr-4 text-slate-200 font-medium">{domain.domain_url}</td>
-      <td className="py-3 pr-4">
-        <span className="font-mono text-xs text-slate-400">
-          {domain.api_key.slice(0, 8)}…
-        </span>
-        <button
-          onClick={() => { navigator.clipboard.writeText(domain.api_key); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-          className="ml-2 text-xs text-violet-400 hover:text-violet-300"
-        >
+    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <td style={{ padding: '12px 16px 12px 0', color: '#e2e8f0', fontWeight: 500, fontSize: '0.9rem' }}>{domain.domain_url}</td>
+      <td style={{ padding: '12px 16px 12px 0' }}>
+        <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#475569' }}>{domain.api_key.slice(0, 8)}…</span>
+        <button onClick={() => { navigator.clipboard.writeText(domain.api_key); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+          style={{ marginLeft: 8, fontSize: '0.75rem', fontWeight: 600, color: copied ? '#22c55e' : '#8b5cf6', background: 'none', border: 'none', cursor: 'pointer' }}>
           {copied ? '✓' : 'copy'}
         </button>
       </td>
-      <td className="py-3 pr-4 text-slate-400 text-sm">{formatTokens(domain.tokens_total ?? 0)}</td>
-      <td className="py-3 pr-4 text-slate-400 text-xs">{domain.top_agent ?? '—'}</td>
-      <td className="py-3">
-        <button
-          onClick={() => onDelete(domain.id)}
-          className="text-xs text-red-500/60 hover:text-red-400 transition-colors"
-        >
+      <td style={{ padding: '12px 16px 12px 0', color: '#60a5fa', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.875rem' }}>{fmt(domain.tokens_total ?? 0)}</td>
+      <td style={{ padding: '12px 16px 12px 0', color: '#475569', fontSize: '0.8rem' }}>{domain.top_agent ?? '—'}</td>
+      <td style={{ padding: '12px 0' }}>
+        <button onClick={() => onDelete(domain.id)}
+          style={{ fontSize: '0.75rem', color: 'rgba(239,68,68,0.5)', background: 'none', border: 'none', cursor: 'pointer' }}
+          onMouseEnter={e => e.target.style.color = '#ef4444'}
+          onMouseLeave={e => e.target.style.color = 'rgba(239,68,68,0.5)'}>
           remove
         </button>
       </td>
     </tr>
   )
 }
+
+// ── main ───────────────────────────────────────────────────────────────────────
 
 export default function Dashboard({ user, onLogout }) {
   const [profile, setProfile] = useState(null)
@@ -99,27 +98,14 @@ export default function Dashboard({ user, onLogout }) {
     if (!user) return
     setLoading(true)
 
-    // get profile
-    const { data: p } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+    const { data: p } = await supabase.from('users').select('*').eq('id', user.id).single()
     setProfile(p)
 
-    // get domains
-    const { data: doms } = await supabase
-      .from('domains')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+    const { data: doms } = await supabase.from('domains').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
 
     const enriched = await Promise.all(
       (doms ?? []).map(async (d) => {
-        const { data: s } = await supabase
-          .from('stats')
-          .select('tokens_wasted, agent_name')
-          .eq('domain_id', d.id)
+        const { data: s } = await supabase.from('stats').select('tokens_wasted, agent_name').eq('domain_id', d.id)
         const total = (s ?? []).reduce((sum, r) => sum + Number(r.tokens_wasted), 0)
         const topAgent = (s ?? []).reduce((best, r) => {
           const n = Number(r.tokens_wasted)
@@ -132,22 +118,16 @@ export default function Dashboard({ user, onLogout }) {
     setDomains(enriched)
     if (enriched.length > 0) setSelectedDomain(enriched[0])
 
-    // aggregate stats
     const allTime = enriched.reduce((sum, d) => sum + (d.tokens_total ?? 0), 0)
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
     const domIds = enriched.map((d) => d.id)
     let weekly = 0
     if (domIds.length > 0) {
-      const { data: ws } = await supabase
-        .from('stats')
-        .select('tokens_wasted')
-        .in('domain_id', domIds)
-        .gte('recorded_at', weekAgo)
+      const { data: ws } = await supabase.from('stats').select('tokens_wasted').in('domain_id', domIds).gte('recorded_at', weekAgo)
       weekly = (ws ?? []).reduce((sum, r) => sum + Number(r.tokens_wasted), 0)
     }
     setStats({ allTime, weekly })
 
-    // rank + badges
     if (p?.username) {
       try {
         const lb = await fetchLeaderboard('alltime', 500)
@@ -168,11 +148,7 @@ export default function Dashboard({ user, onLogout }) {
     try {
       let url = newDomain.trim().toLowerCase()
       if (!/^https?:\/\//.test(url)) url = 'https://' + url
-      const { data, error } = await supabase
-        .from('domains')
-        .insert({ user_id: user.id, domain_url: url })
-        .select()
-        .single()
+      const { data, error } = await supabase.from('domains').insert({ user_id: user.id, domain_url: url }).select().single()
       if (error) throw error
       setNewDomain('')
       await load()
@@ -193,137 +169,161 @@ export default function Dashboard({ user, onLogout }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#050508' }}>
-        <div className="text-slate-500">Loading…</div>
+      <div style={{ width: '100%', minHeight: '100vh', background: '#050508', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid #7c3aed', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen px-4 py-8 max-w-5xl mx-auto" style={{ background: '#050508' }}>
+    <div style={{ width: '100%', minHeight: '100vh', background: '#050508' }}>
 
-      {/* header */}
-      <div className="flex items-center justify-between mb-10">
-        <a href="/" className="font-black text-lg tracking-tight text-white">
-          waste<span className="text-violet-500">my</span>tokens
+      {/* nav */}
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 40,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 clamp(20px, 5vw, 60px)', height: 64,
+        background: 'rgba(5,5,8,0.9)',
+        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+      }}>
+        <a href="/" style={{ fontWeight: 900, fontSize: '1.1rem', color: '#fff', textDecoration: 'none', letterSpacing: '-0.02em' }}>
+          waste<span style={{ color: '#8b5cf6' }}>my</span>tokens
         </a>
-        <div className="flex items-center gap-4">
-          <a href="/leaderboard" className="text-sm text-slate-400 hover:text-white">Leaderboard</a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <a href="/leaderboard" style={{ fontSize: '0.875rem', color: '#64748b', textDecoration: 'none', padding: '6px 12px' }}
+            onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = '#64748b'}>
+            Leaderboard
+          </a>
           {profile?.username && (
-            <a href={`/u/${profile.username}`} className="text-sm text-slate-400 hover:text-white">
+            <a href={`/u/${profile.username}`} style={{ fontSize: '0.875rem', color: '#64748b', textDecoration: 'none', padding: '6px 12px' }}
+              onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = '#64748b'}>
               My profile
             </a>
           )}
-          <button onClick={onLogout} className="text-sm text-slate-500 hover:text-red-400 transition-colors">
+          <button onClick={onLogout} style={{ fontSize: '0.875rem', color: '#475569', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 12px' }}
+            onMouseEnter={e => e.target.style.color = '#ef4444'} onMouseLeave={e => e.target.style.color = '#475569'}>
             Log out
           </button>
         </div>
-      </div>
+      </nav>
 
-      {/* rank hero */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8 p-6 rounded-2xl border border-violet-500/30 flex items-start justify-between flex-wrap gap-4"
-        style={{ background: 'radial-gradient(circle at 0% 50%, rgba(109,40,217,0.15) 0%, rgba(5,5,8,0) 70%)' }}
-      >
-        <div>
-          <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold">Global Rank</p>
-          <p className="text-6xl font-black text-white mt-1">#{rank}</p>
-          <p className="text-sm text-slate-400 mt-1">@{profile?.username ?? '—'}</p>
-        </div>
-        <BadgeDisplay badges={badges} size="lg" />
-      </motion.div>
+      {/* page body */}
+      <main style={{ maxWidth: 1080, margin: '0 auto', padding: 'clamp(40px, 5vh, 64px) clamp(24px, 5vw, 56px)' }}>
 
-      {/* stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-        <StatCard label="All-time wasted" value={formatTokens(stats.allTime)} />
-        <StatCard label="This week" value={formatTokens(stats.weekly)} />
-        <StatCard label="Domains" value={domains.length} />
-        <StatCard label="Member since" value={profile ? since(profile.created_at) : '—'} />
-      </div>
+        {/* rank hero */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EXPO }}
+          style={{
+            marginBottom: 28, padding: 'clamp(24px, 3vw, 36px)',
+            borderRadius: 20, border: '1px solid rgba(124,58,237,0.3)',
+            background: 'radial-gradient(ellipse at 0% 60%, rgba(109,40,217,0.18) 0%, rgba(5,5,8,0) 65%)',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20,
+          }}
+        >
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#475569', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 6 }}>Global Rank</p>
+            <p style={{ fontSize: 'clamp(3rem, 7vw, 5rem)', fontWeight: 900, color: '#fff', margin: '0 0 4px', lineHeight: 1 }}>#{rank}</p>
+            <p style={{ fontSize: '0.9rem', color: '#64748b' }}>@{profile?.username ?? '—'}</p>
+          </div>
+          <BadgeDisplay badges={badges} size="lg" />
+        </motion.div>
 
-      {/* domains section */}
-      <div className="mb-10">
-        <h2 className="text-lg font-black text-white mb-4">Your Domains</h2>
+        {/* stats grid */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1, ease: EXPO }}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 'clamp(10px, 1.5vw, 16px)', marginBottom: 40 }}
+        >
+          <StatCard label="All-time wasted" value={fmt(stats.allTime)} />
+          <StatCard label="This week" value={fmt(stats.weekly)} />
+          <StatCard label="Domains" value={domains.length} />
+          <StatCard label="Member since" value={profile ? since(profile.created_at) : '—'} />
+        </motion.div>
 
-        {/* add domain */}
-        <form onSubmit={addDomain} className="flex gap-3 mb-6 flex-wrap">
-          <input
-            type="text"
-            placeholder="yourdomain.com"
-            value={newDomain}
-            onChange={(e) => setNewDomain(e.target.value)}
-            required
-            className="flex-1 px-4 py-3 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-violet-500 min-w-48"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-          />
-          <button
-            type="submit"
-            disabled={addLoading}
-            className="px-6 py-3 rounded-xl font-semibold text-sm text-white disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #6d28d9, #4f46e5)' }}
+        {/* domains */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.18, ease: EXPO }}
+          style={{ marginBottom: 36 }}
+        >
+          <h2 style={{ fontWeight: 800, fontSize: '1.1rem', color: '#fff', marginBottom: 16 }}>Your Domains</h2>
+
+          {/* add domain form */}
+          <form onSubmit={addDomain} style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+            <input
+              type="text" placeholder="yourdomain.com"
+              value={newDomain} onChange={(e) => setNewDomain(e.target.value)} required
+              style={{
+                flex: 1, minWidth: 200, padding: '12px 16px', borderRadius: 12, fontSize: '0.9rem',
+                color: '#fff', outline: 'none', background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+              }}
+              onFocus={e => e.target.style.borderColor = 'rgba(124,58,237,0.6)'}
+              onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+            />
+            <button type="submit" disabled={addLoading}
+              style={{
+                padding: '12px 22px', borderRadius: 12, fontSize: '0.875rem', fontWeight: 700,
+                color: '#fff', border: 'none', cursor: 'pointer', opacity: addLoading ? 0.5 : 1,
+                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+              }}>
+              {addLoading ? 'Adding…' : '+ Add domain'}
+            </button>
+          </form>
+
+          {addError && <p style={{ fontSize: '0.875rem', color: '#ef4444', marginBottom: 12 }}>{addError}</p>}
+
+          {domains.length > 0 ? (
+            <div style={{ borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)', overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                    {['Domain', 'API Key', 'Tokens Wasted', 'Top Agent', ''].map((h) => (
+                      <th key={h} style={{ padding: '12px 16px 12px 0', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#334155', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {domains.map((d) => <DomainRow key={d.id} domain={d} onDelete={deleteDomain} />)}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p style={{ color: '#334155', fontSize: '0.875rem', padding: '24px 0' }}>No domains yet. Add one above to get your API key.</p>
+          )}
+        </motion.section>
+
+        {/* integration snippet */}
+        {selectedDomain && (
+          <motion.section
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.25, ease: EXPO }}
           >
-            {addLoading ? 'Adding…' : '+ Add domain'}
-          </button>
-        </form>
-
-        {addError && (
-          <p className="text-sm text-red-400 mb-4">{addError}</p>
-        )}
-
-        {domains.length > 0 ? (
-          <div className="rounded-2xl border border-white/10 overflow-x-auto" style={{ background: 'rgba(255,255,255,0.02)' }}>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-500 border-b border-white/10">
-                  <th className="px-5 py-3 font-semibold">Domain</th>
-                  <th className="px-5 py-3 font-semibold">API Key</th>
-                  <th className="px-5 py-3 font-semibold">Tokens Wasted</th>
-                  <th className="px-5 py-3 font-semibold hidden md:table-cell">Top Agent</th>
-                  <th className="px-5 py-3" />
-                </tr>
-              </thead>
-              <tbody>
+            <h2 style={{ fontWeight: 800, fontSize: '1.1rem', color: '#fff', marginBottom: 6 }}>Proxy integration</h2>
+            <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: 14 }}>
+              Add these env vars for{' '}
+              <span style={{ color: '#8b5cf6', fontFamily: 'monospace', fontSize: '0.8rem' }}>{selectedDomain.domain_url}</span>.
+            </p>
+            {domains.length > 1 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                 {domains.map((d) => (
-                  <DomainRow key={d.id} domain={d} onDelete={deleteDomain} />
+                  <button key={d.id} onClick={() => setSelectedDomain(d)}
+                    style={{
+                      fontSize: '0.75rem', padding: '5px 12px', borderRadius: 20, fontWeight: 700,
+                      cursor: 'pointer', border: 'none',
+                      background: selectedDomain.id === d.id ? '#7c3aed' : 'rgba(255,255,255,0.06)',
+                      color: selectedDomain.id === d.id ? '#fff' : '#64748b',
+                    }}>
+                    {d.domain_url.replace(/https?:\/\//, '')}
+                  </button>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-slate-500 text-sm py-6">No domains yet. Add one above to get your API key.</p>
+              </div>
+            )}
+            <CodeSnippet apiKey={selectedDomain.api_key} />
+          </motion.section>
         )}
-      </div>
 
-      {/* integration snippet */}
-      {selectedDomain && (
-        <div className="mb-10">
-          <h2 className="text-lg font-black text-white mb-2">Proxy integration</h2>
-          <p className="text-sm text-slate-400 mb-4">
-            Add these env vars to your proxy deployment for{' '}
-            <span className="text-violet-400 font-mono text-xs">{selectedDomain.domain_url}</span>.
-            Showing key for the most recently added domain — click a row to change.
-          </p>
-          <div className="flex gap-2 mb-3 flex-wrap">
-            {domains.map((d) => (
-              <button
-                key={d.id}
-                onClick={() => setSelectedDomain(d)}
-                className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-colors ${
-                  selectedDomain.id === d.id
-                    ? 'bg-violet-600 text-white'
-                    : 'bg-white/5 text-slate-400 hover:bg-white/10'
-                }`}
-              >
-                {d.domain_url.replace(/https?:\/\//, '')}
-              </button>
-            ))}
-          </div>
-          <CodeSnippet apiKey={selectedDomain.api_key} />
-        </div>
-      )}
-
+      </main>
     </div>
   )
 }

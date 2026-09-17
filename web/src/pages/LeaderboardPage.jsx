@@ -1,7 +1,17 @@
 import { useEffect, useState, useCallback } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import Leaderboard from '../components/Leaderboard'
 import { fetchLeaderboard } from '../lib/api'
+
+const NAV = {
+  position: 'sticky', top: 0, zIndex: 40,
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  padding: '0 clamp(20px, 5vw, 60px)',
+  height: 64,
+  background: 'rgba(5,5,8,0.9)',
+  backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+  borderBottom: '1px solid rgba(255,255,255,0.05)',
+}
 
 export default function LeaderboardPage({ onAuthClick }) {
   const [tab, setTab] = useState('alltime')
@@ -14,11 +24,8 @@ export default function LeaderboardPage({ onAuthClick }) {
       const data = await fetchLeaderboard(tab, 50)
       setRows(data)
       setLastUpdated(new Date())
-    } catch {
-      /* keep last rows */
-    } finally {
-      setLoading(false)
-    }
+    } catch { /* keep last rows */ }
+    finally { setLoading(false) }
   }, [tab])
 
   useEffect(() => {
@@ -29,73 +36,77 @@ export default function LeaderboardPage({ onAuthClick }) {
   }, [load])
 
   return (
-    <div className="min-h-screen" style={{ background: '#050508' }}>
+    <div style={{ width: '100%', minHeight: '100vh', background: '#050508' }}>
 
       {/* nav */}
-      <nav className="sticky top-0 z-40 px-6 py-4 flex items-center justify-between"
-        style={{ background: 'rgba(5,5,8,0.9)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <a href="/" className="font-black text-lg tracking-tight text-white">
-          waste<span className="text-violet-500">my</span>tokens
+      <nav style={NAV}>
+        <a href="/" style={{ fontWeight: 900, fontSize: '1.1rem', color: '#fff', textDecoration: 'none', letterSpacing: '-0.02em' }}>
+          waste<span style={{ color: '#8b5cf6' }}>my</span>tokens
         </a>
-        <div className="flex items-center gap-4">
-          <button onClick={() => onAuthClick?.('login')} className="text-sm text-slate-400 hover:text-white">Log in</button>
-          <button
-            onClick={() => onAuthClick?.('signup')}
-            className="text-sm font-semibold px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors"
-          >
-            Get started
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => onAuthClick?.('login')}
+            style={{ fontSize: '0.875rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px' }}
+            onMouseEnter={e => e.target.style.color = '#fff'}
+            onMouseLeave={e => e.target.style.color = '#64748b'}
+          >Log in</button>
+          <button onClick={() => onAuthClick?.('signup')}
+            style={{ fontSize: '0.875rem', fontWeight: 700, color: '#fff', cursor: 'pointer', padding: '9px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+          >Get started</button>
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
-        >
-          <h1 className="text-4xl font-black text-white tracking-tight">
+      {/* content */}
+      <main style={{ maxWidth: 960, margin: '0 auto', padding: 'clamp(48px, 6vh, 80px) clamp(24px, 5vw, 56px)' }}>
+
+        {/* heading */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          style={{ marginBottom: 48 }}>
+          <p style={{ fontSize: 11, fontWeight: 800, color: '#7c3aed', letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 12 }}>
+            Rankings
+          </p>
+          <h1 style={{ fontWeight: 900, fontSize: 'clamp(2rem, 4.5vw, 3.4rem)', color: '#fff', letterSpacing: '-0.025em', lineHeight: 1.1, margin: '0 0 12px' }}>
             Token Wasters{' '}
-            <span className="glow-purple" style={{ color: '#a78bfa' }}>Leaderboard</span>
+            <span style={{ color: '#a78bfa', textShadow: '0 0 40px rgba(167,139,250,0.4)' }}>Leaderboard</span>
           </h1>
-          <p className="text-slate-400 mt-2">The void keeps score. Updated every 30 seconds.</p>
+          <p style={{ color: '#475569', fontSize: '1rem' }}>The void keeps score. Updated every 30 seconds.</p>
         </motion.div>
 
-        {/* tabs */}
-        <div className="flex gap-2 mb-8 p-1 rounded-xl w-fit" style={{ background: 'rgba(255,255,255,0.05)' }}>
+        {/* tab switcher */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
+          style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 12, background: 'rgba(255,255,255,0.05)', marginBottom: 28 }}>
           {[{ key: 'alltime', label: 'All-time' }, { key: 'weekly', label: 'This week' }].map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                tab === t.key
-                  ? 'bg-violet-600 text-white'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {t.label}
-            </button>
+            <button key={t.key} onClick={() => setTab(t.key)}
+              style={{
+                padding: '8px 22px', borderRadius: 9, fontSize: '0.875rem', fontWeight: 600,
+                cursor: 'pointer', border: 'none', transition: 'all 0.2s',
+                background: tab === t.key ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : 'transparent',
+                color: tab === t.key ? '#fff' : '#64748b',
+              }}
+              onMouseEnter={e => { if (tab !== t.key) e.target.style.color = '#fff' }}
+              onMouseLeave={e => { if (tab !== t.key) e.target.style.color = '#64748b' }}
+            >{t.label}</button>
           ))}
-        </div>
+        </motion.div>
 
         {/* table */}
-        <motion.div
-          key={tab}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.25 }}
-          className="rounded-2xl border border-white/10 p-6"
-          style={{ background: 'rgba(255,255,255,0.02)' }}
-        >
-          <Leaderboard rows={rows} loading={loading} />
-        </motion.div>
+        <AnimatePresence mode="wait">
+          <motion.div key={tab}
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
+            style={{ borderRadius: 20, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}
+          >
+            <div style={{ padding: 28 }}>
+              <Leaderboard rows={rows} loading={loading} />
+            </div>
+          </motion.div>
+        </AnimatePresence>
 
         {lastUpdated && (
-          <p className="text-xs text-slate-600 mt-4 text-right">
+          <p style={{ fontSize: '0.75rem', color: '#1e293b', marginTop: 16, textAlign: 'right' }}>
             Last updated {lastUpdated.toLocaleTimeString()}
           </p>
         )}
-      </div>
+      </main>
     </div>
   )
 }
