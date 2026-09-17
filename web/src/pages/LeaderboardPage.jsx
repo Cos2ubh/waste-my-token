@@ -40,9 +40,14 @@ export default function LeaderboardPage({ onAuthClick }) {
 
       {/* nav */}
       <nav style={NAV}>
-        <a href="/" style={{ fontWeight: 900, fontSize: '1.1rem', color: '#fff', textDecoration: 'none', letterSpacing: '-0.02em' }}>
-          waste<span style={{ color: '#8b5cf6' }}>my</span>tokens
-        </a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <a href="/" style={{ fontWeight: 900, fontSize: '1.1rem', color: '#fff', textDecoration: 'none', letterSpacing: '-0.02em' }}>
+            waste<span style={{ color: '#8b5cf6' }}>my</span>tokens
+          </a>
+          <span style={{ fontSize: '0.75rem', color: '#334155', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>
+            / The Void
+          </span>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={() => onAuthClick?.('login')}
             style={{ fontSize: '0.875rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px' }}
@@ -64,11 +69,13 @@ export default function LeaderboardPage({ onAuthClick }) {
           <p style={{ fontSize: 11, fontWeight: 800, color: '#7c3aed', letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 12 }}>
             Rankings
           </p>
-          <h1 style={{ fontWeight: 900, fontSize: 'clamp(2rem, 4.5vw, 3.4rem)', color: '#fff', letterSpacing: '-0.025em', lineHeight: 1.1, margin: '0 0 12px' }}>
-            Token Wasters{' '}
-            <span style={{ color: '#a78bfa', textShadow: '0 0 40px rgba(167,139,250,0.4)' }}>Leaderboard</span>
+          <h1 style={{ fontWeight: 900, fontSize: 'clamp(2rem, 4.5vw, 3.4rem)', color: '#fff', letterSpacing: '-0.025em', lineHeight: 1.1, margin: '0 0 16px' }}>
+            The <span style={{ color: '#a78bfa', textShadow: '0 0 40px rgba(167,139,250,0.5)' }}>Void</span>
           </h1>
-          <p style={{ color: '#475569', fontSize: '1rem' }}>The void keeps score. Updated every 30 seconds.</p>
+          <p style={{ color: '#475569', fontSize: '1rem', maxWidth: 480, lineHeight: 1.7 }}>
+            Every token wasted is recorded here — permanently, publicly, without mercy.{' '}
+            <span style={{ color: '#64748b' }}>Where do you rank in the void?</span>
+          </p>
         </motion.div>
 
         {/* tab switcher */}

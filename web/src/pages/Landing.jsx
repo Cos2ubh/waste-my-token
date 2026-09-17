@@ -232,9 +232,9 @@ export default function Landing({ onAuthClick }) {
           waste<span style={{ color: '#8b5cf6' }}>my</span>tokens
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <a href="/leaderboard" style={{ fontSize: '0.875rem', color: '#64748b', textDecoration: 'none', padding: '6px 14px', borderRadius: 8 }}
+          <a href="/leaderboard" style={{ fontSize: '0.875rem', color: '#64748b', textDecoration: 'none', padding: '6px 14px', borderRadius: 8, letterSpacing: '0.01em' }}
             onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = '#64748b'}>
-            Leaderboard
+            The Void
           </a>
           <button onClick={() => onAuthClick('login')} style={{ fontSize: '0.875rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px', borderRadius: 8 }}
             onMouseEnter={e => e.target.style.color = '#fff'} onMouseLeave={e => e.target.style.color = '#64748b'}>
@@ -416,7 +416,7 @@ export default function Landing({ onAuthClick }) {
 
           <Reveal from={{ opacity: 0 }} delay={0.25} style={{ textAlign: 'center', marginTop: 20 }}>
             <a href="/leaderboard" style={{ color: '#7c3aed', fontSize: '0.875rem', fontWeight: 700, textDecoration: 'none' }}>
-              View full leaderboard →
+              Enter the void →
             </a>
           </Reveal>
         </div>
