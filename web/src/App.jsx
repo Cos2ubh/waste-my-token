@@ -24,8 +24,17 @@ async function ensureUserRecord(authUser) {
     .replace(/[^a-z0-9]/gi, '')
     .toLowerCase()
     .slice(0, 16)
-  const suffix = Math.floor(1000 + Math.random() * 9000)
-  await supabase.from('users').insert({ id: authUser.id, username: `${base}${suffix}` })
+
+  // retry up to 10 times — each attempt picks a fresh 4-digit suffix
+  // so even if the base collides, a unique slot will be found quickly
+  for (let i = 0; i < 10; i++) {
+    const suffix = Math.floor(1000 + Math.random() * 9000)
+    const { error } = await supabase
+      .from('users').insert({ id: authUser.id, username: `${base}${suffix}` })
+    if (!error) return
+    // only retry on unique-constraint violations
+    if (!error.message?.includes('unique') && !error.code?.includes('23505')) throw error
+  }
 }
 
 export default function App() {
