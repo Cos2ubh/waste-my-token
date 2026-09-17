@@ -12,17 +12,37 @@ function ProtectedRoute({ user, children }) {
   return children
 }
 
+// When a Google OAuth user lands back, ensure they have a users table record.
+// Generates a username from their email (letters+numbers, max 20 chars) + 4-digit suffix.
+async function ensureUserRecord(authUser) {
+  const { data: existing } = await supabase
+    .from('users').select('id').eq('id', authUser.id).maybeSingle()
+  if (existing) return
+
+  const base = (authUser.email ?? 'user')
+    .split('@')[0]
+    .replace(/[^a-z0-9]/gi, '')
+    .toLowerCase()
+    .slice(0, 16)
+  const suffix = Math.floor(1000 + Math.random() * 9000)
+  await supabase.from('users').insert({ id: authUser.id, username: `${base}${suffix}` })
+}
+
 export default function App() {
-  const [user, setUser] = useState(undefined) // undefined = loading
-  const [authModal, setAuthModal] = useState(null) // null | 'login' | 'signup'
+  const [user, setUser] = useState(undefined)
+  const [authModal, setAuthModal] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null)
+      const u = data.session?.user ?? null
+      setUser(u)
+      if (u) ensureUserRecord(u).catch(() => {})
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_ev, session) => {
-      setUser(session?.user ?? null)
+      const u = session?.user ?? null
+      setUser(u)
+      if (u) ensureUserRecord(u).catch(() => {})
     })
 
     return () => subscription.unsubscribe()
@@ -38,19 +58,13 @@ export default function App() {
   const closeAuth = () => setAuthModal(null)
   const onAuthSuccess = (u) => {
     setUser(u)
-    setTimeout(() => {
-      closeAuth()
-      window.location.href = '/dashboard'
-    }, 300)
+    setTimeout(() => { closeAuth(); window.location.href = '/dashboard' }, 300)
   }
 
   if (user === undefined) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: '#050508' }}
-      >
-        <div className="w-6 h-6 rounded-full border-2 border-violet-600 border-t-transparent animate-spin" />
+      <div style={{ width: '100%', minHeight: '100vh', background: '#050508', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid #7c3aed', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
       </div>
     )
   }
@@ -62,26 +76,9 @@ export default function App() {
       )}
 
       <Routes>
-        <Route
-          path="/"
-          element={
-            user
-              ? <Navigate to="/dashboard" replace />
-              : <Landing onAuthClick={openAuth} />
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute user={user}>
-              <Dashboard user={user} onLogout={handleLogout} />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/leaderboard"
-          element={<LeaderboardPage onAuthClick={openAuth} />}
-        />
+        <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing onAuthClick={openAuth} />} />
+        <Route path="/dashboard" element={<ProtectedRoute user={user}><Dashboard user={user} onLogout={handleLogout} /></ProtectedRoute>} />
+        <Route path="/leaderboard" element={<LeaderboardPage onAuthClick={openAuth} />} />
         <Route path="/u/:username" element={<Profile />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -16,114 +16,110 @@ const fragmentShader = `
   uniform vec2 u_resolution;
   varying vec2 vUv;
 
-  // Fast hash for procedural stars
   float hash(vec2 p) {
     p = fract(p * vec2(127.1, 311.7));
     p += dot(p, p + 45.32);
     return fract(p.x * p.y);
   }
 
-  // Procedural star field
   float stars(vec2 uv, float scale) {
     vec2 grid = floor(uv * scale);
     vec2 local = fract(uv * scale) - 0.5;
     float r = hash(grid);
-    float size = 0.015 + r * 0.025;
-    float brightness = step(0.88, r);
-    return brightness * smoothstep(size, 0.0, length(local));
-  }
-
-  // Accretion disk color + Doppler beaming
-  vec3 accretionDisk(vec2 p, float t) {
-    float r = length(p);
-    float angle = atan(p.y, p.x);
-
-    // Disk only exists in a band of radii
-    float innerEdge = 0.13;
-    float outerEdge = 0.55;
-    float band = smoothstep(innerEdge, innerEdge + 0.04, r) *
-                 smoothstep(outerEdge, outerEdge - 0.08, r);
-
-    // Temperature: inner = blue-white, outer = orange-red
-    float heat = 1.0 - smoothstep(innerEdge, outerEdge, r);
-    vec3 hot  = vec3(0.85, 0.95, 1.00); // blue-white
-    vec3 warm = vec3(1.00, 0.55, 0.10); // orange
-    vec3 cool = vec3(0.80, 0.10, 0.02); // deep red
-    vec3 diskColor = heat > 0.5
-      ? mix(warm, hot,  (heat - 0.5) * 2.0)
-      : mix(cool, warm,  heat * 2.0);
-
-    // Relativistic Doppler beaming — left side blazes, right side dims
-    float doppler = 1.0 + 0.75 * sin(angle + t * 0.25);
-
-    // Thin disk: suppress above/below equatorial plane
-    float equator = exp(-abs(p.y / (r + 0.001)) * 12.0);
-
-    // Turbulent brightness variation
-    float flicker = 0.75 + 0.25 * sin(angle * 7.0 + t * 2.0 + r * 30.0);
-
-    return diskColor * band * doppler * equator * flicker * 2.5;
+    float size = 0.012 + r * 0.02;
+    return step(0.86, r) * smoothstep(size, 0.0, length(local));
   }
 
   void main() {
     vec2 uv = vUv;
     vec2 center = vec2(0.5, 0.5);
     vec2 p = uv - center;
-
-    // Correct for aspect ratio
     float aspect = u_resolution.x / u_resolution.y;
     p.x *= aspect;
 
     float r = length(p);
-    float rs = 0.10; // Schwarzschild radius
+    float angle = atan(p.y, p.x);
+    float t = u_time;
 
-    // Absolute black inside event horizon
-    if (r < rs) {
+    // --- Constants ---
+    float RS   = 0.14;   // event horizon radius
+    float INNER = 0.18;  // disk inner edge
+    float OUTER = 0.72;  // disk outer edge
+    float TILT  = 3.2;   // y squish — simulates ~72° viewing angle (Interstellar-style)
+
+    // --- Event horizon: absolute black ---
+    if (r < RS) {
       gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
       return;
     }
 
-    // Photon sphere — razor-thin bright ring at 1.5 * rs
-    float photonRing = smoothstep(0.008, 0.0, abs(r - rs * 1.5)) * 4.5;
-
-    // Gravitational lensing: deflect background UV
-    float deflection = (rs * rs) / (r * r + 0.001);
-    vec2 lensed = p - normalize(p) * deflection * 1.2;
-
-    // Undo aspect for texture sampling
+    // --- Gravitational lensing of background ---
+    float deflection = (RS * RS * 1.6) / (r * r + 0.001);
+    vec2 lensed = p - normalize(p) * deflection;
     lensed.x /= aspect;
     lensed += center;
 
-    // Background star field (lensed)
     float s = 0.0;
-    s += stars(lensed * 1.8,  18.0);
-    s += stars(lensed * 3.1 + 0.17, 28.0) * 0.6;
-    s += stars(lensed * 5.7 + 0.43, 45.0) * 0.3;
-    // Subtle blue tint on stars closer to the lens
-    float starHeat = smoothstep(0.45, 0.0, r);
-    vec3 starColor = mix(vec3(0.7, 0.75, 1.0), vec3(0.4, 0.55, 1.0), starHeat) * s * 2.5;
+    s += stars(lensed * 2.1, 20.0) * 1.2;
+    s += stars(lensed * 3.8 + 0.23, 32.0) * 0.7;
+    s += stars(lensed * 6.5 + 0.61, 50.0) * 0.4;
+    float redshift = smoothstep(RS, RS * 3.2, r);
+    float starHeat = smoothstep(0.5, 0.0, r);
+    vec3 starColor = mix(vec3(0.75, 0.8, 1.0), vec3(0.3, 0.5, 1.0), starHeat) * s * 3.0 * redshift;
 
-    // Gravitational redshift darkens stars near event horizon
-    float redshift = smoothstep(rs, rs * 2.8, r);
-    starColor *= redshift;
+    // --- Tilted accretion disk ---
+    // Squish y to simulate viewing the disk at an angle
+    vec2 diskCoord = vec2(p.x, p.y * TILT);
+    float diskR = length(diskCoord);
+    float diskAngle = atan(p.y, p.x);
 
-    // Accretion disk
-    vec3 disk = accretionDisk(p, u_time);
+    // Doppler beaming: left side (approaching) blazes 3-4x brighter
+    float doppler = pow(max(0.0, 1.0 + 0.85 * cos(diskAngle + t * 0.18)), 2.8);
 
-    // Purple nebula glow around singularity
-    float nebula = exp(-r * r * 3.5) * 0.18;
-    vec3 nebulaColor = vec3(0.25, 0.0, 0.55) * nebula;
+    // Radial disk profile
+    float diskBand = smoothstep(INNER - 0.01, INNER + 0.05, diskR)
+                   * smoothstep(OUTER, OUTER * 0.55, diskR);
 
-    // Outer ambient glow (very faint dark blue)
-    float outerGlow = exp(-r * r * 0.8) * 0.06;
-    vec3 glowColor = vec3(0.05, 0.08, 0.22) * outerGlow;
+    // Temperature: blue-white inner → bright yellow mid → deep red outer
+    float heat = 1.0 - smoothstep(INNER, OUTER, diskR);
+    vec3 outerColor = vec3(0.9,  0.12, 0.01);  // deep red-orange
+    vec3 midColor   = vec3(1.0,  0.65, 0.15);  // bright amber
+    vec3 innerColor = vec3(0.6,  0.85, 1.5);   // blue-white (over-exposed)
+    vec3 diskColor  = heat < 0.5
+      ? mix(outerColor, midColor, heat * 2.0)
+      : mix(midColor, innerColor, (heat - 0.5) * 2.0);
 
-    vec3 color = starColor + disk + nebulaColor + glowColor;
-    color += vec3(0.55, 0.75, 1.0) * photonRing;
+    // Turbulent flicker
+    float flicker = 0.78 + 0.22 * sin(diskAngle * 9.0 + t * 2.5 + diskR * 25.0);
 
-    // Tone map and gamma correct
-    color = color / (color + 0.8);
-    color = pow(color, vec3(0.45));
+    vec3 disk = diskColor * diskBand * doppler * flicker * 4.5;
+
+    // --- Photon ring: soft gaussian glow, not a hard circle ---
+    float photonR = RS * 1.5;
+    float photon  = exp(-pow((r - photonR) / 0.012, 2.0)) * 7.0;
+    // Only glow on the lit side of the disk (not behind the singularity)
+    float litSide = smoothstep(-0.1, 0.4, cos(angle + t * 0.18));
+    vec3 photonColor = mix(vec3(0.5, 0.7, 1.0), vec3(1.0, 0.8, 0.5), litSide) * photon;
+
+    // --- Inner shadow ring (dark region just outside event horizon) ---
+    float innerShadow = smoothstep(RS * 1.0, RS * 1.35, r)
+                      * smoothstep(RS * 2.2, RS * 1.5, r);
+    vec3 shadowColor  = vec3(0.0) * innerShadow;
+
+    // --- Volumetric glow halo around the whole black hole ---
+    float halo = exp(-r * r * 2.2) * 0.35;
+    vec3 haloColor = vec3(0.18, 0.04, 0.45) * halo;
+
+    // Wide diffuse orange glow from the bright disk side
+    float diskGlow = exp(-pow(r - 0.4, 2.0) * 3.0) * doppler * 0.25;
+    vec3 diskGlowColor = vec3(0.9, 0.35, 0.05) * diskGlow;
+
+    // --- Compose ---
+    vec3 color = starColor + disk + photonColor + haloColor + diskGlowColor;
+
+    // Cinematic tone mapping (ACES approximation)
+    color = (color * (2.51 * color + 0.03)) / (color * (2.43 * color + 0.59) + 0.14);
+    color = pow(max(color, 0.0), vec3(0.42));
 
     gl_FragColor = vec4(color, 1.0);
   }

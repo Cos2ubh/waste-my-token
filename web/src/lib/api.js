@@ -126,6 +126,32 @@ export async function fetchProfile(username) {
   }
 }
 
+// ── top agents — graveyard data ───────────────────────────────────────────────
+// Returns tokens wasted per agent across ALL users, merged with the known list
+// so the graveyard always shows the full enemy roster even with zero data.
+
+const KNOWN_AGENTS = [
+  'GPTBot', 'ClaudeBot', 'PerplexityBot', 'Googlebot',
+  'Bytespider', 'CCBot', 'anthropic-ai', 'cohere-ai',
+]
+
+export async function fetchTopAgents() {
+  const { data, error } = await supabase.from('stats').select('agent_name, tokens_wasted')
+  if (error) throw error
+
+  const map = {}
+  for (const r of data ?? []) {
+    map[r.agent_name] = (map[r.agent_name] ?? 0) + Number(r.tokens_wasted)
+  }
+
+  // ensure known agents always appear
+  for (const a of KNOWN_AGENTS) if (!map[a]) map[a] = 0
+
+  return Object.entries(map)
+    .map(([name, tokens]) => ({ name, tokens }))
+    .sort((a, b) => b.tokens - a.tokens)
+}
+
 // ── report (called by proxy via REST — also wired as a server route) ──────────
 
 export async function reportUsage({ api_key, agent_name, tokens_wasted }) {

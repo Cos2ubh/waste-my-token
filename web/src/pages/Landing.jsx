@@ -3,7 +3,7 @@ import { motion, useScroll, useTransform, useSpring, AnimatePresence } from 'fra
 import GravitationalLens from '../components/GravitationalLens'
 import TokenCounter from '../components/TokenCounter'
 import Leaderboard from '../components/Leaderboard'
-import { fetchLeaderboard } from '../lib/api'
+import { fetchLeaderboard, fetchTopAgents } from '../lib/api'
 
 // ── easing ────────────────────────────────────────────────────────────────────
 const EXPO = [0.16, 1, 0.3, 1]
@@ -36,10 +36,16 @@ const STEPS = [
   },
 ]
 
-const MODES = [
-  { name: 'Black Hole',  desc: 'Floods context with 368K tokens of filler. Instant overwhelm, immediate context death.', dot: '#7c3aed', bg: 'rgba(124,58,237,0.08)', border: 'rgba(124,58,237,0.25)', glow: 'rgba(124,58,237,0.45)' },
-  { name: 'Tarpit',      desc: 'Slow-drips a response that never completes. Wastes their compute, their time, their tokens.', dot: '#ea580c', bg: 'rgba(234,88,12,0.08)', border: 'rgba(234,88,12,0.25)', glow: 'rgba(234,88,12,0.45)' },
-  { name: 'White Hole',  desc: 'Clean structured feed for authorized agents. Whitelist the bots you actually want in.', dot: '#2563eb', bg: 'rgba(37,99,235,0.08)', border: 'rgba(37,99,235,0.25)', glow: 'rgba(37,99,235,0.45)' },
+// Known agents — always shown in graveyard, even with 0 tokens
+const KNOWN_AGENTS = [
+  { name: 'GPTBot',         org: 'OpenAI' },
+  { name: 'ClaudeBot',      org: 'Anthropic' },
+  { name: 'PerplexityBot',  org: 'Perplexity' },
+  { name: 'Bytespider',     org: 'ByteDance' },
+  { name: 'CCBot',          org: 'Common Crawl' },
+  { name: 'Googlebot',      org: 'Google' },
+  { name: 'anthropic-ai',   org: 'Anthropic' },
+  { name: 'cohere-ai',      org: 'Cohere' },
 ]
 
 // ── shared layout ─────────────────────────────────────────────────────────────
@@ -124,53 +130,62 @@ function StepCard({ step, delay }) {
   )
 }
 
-// ── mode card — magnetic hover ─────────────────────────────────────────────────
-function ModeCard({ mode, delay }) {
-  const ref = useRef(null)
-  const [pos, setPos] = useState({ x: 0, y: 0 })
-  const [hovered, setHovered] = useState(false)
+// ── graveyard entry ────────────────────────────────────────────────────────────
+function GraveyardEntry({ agent, tokens, max, index }) {
+  const pct = max > 0 ? (tokens / max) * 100 : 0
+  const hasData = tokens > 0
 
-  const handleMouseMove = (e) => {
-    const rect = ref.current.getBoundingClientRect()
-    setPos({
-      x: ((e.clientX - rect.left) / rect.width - 0.5) * 10,
-      y: ((e.clientY - rect.top) / rect.height - 0.5) * 10,
-    })
+  function fmt(n) {
+    if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B'
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'
+    if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K'
+    return n > 0 ? n.toString() : '0'
   }
 
   return (
-    <Reveal from={{ opacity: 0, y: 40 }} delay={delay}>
-      <motion.div
-        ref={ref}
-        onMouseMove={handleMouseMove}
-        onHoverStart={() => setHovered(true)}
-        onHoverEnd={() => { setHovered(false); setPos({ x: 0, y: 0 }) }}
-        animate={{
-          rotateX: hovered ? -pos.y * 0.6 : 0,
-          rotateY: hovered ? pos.x * 0.6 : 0,
-          scale: hovered ? 1.03 : 1,
-          boxShadow: hovered ? `0 20px 60px ${mode.glow}, 0 0 0 1px ${mode.border}` : `0 0 0 1px ${mode.border}`,
-        }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
-        style={{
-          padding: 'clamp(24px, 2.5vw, 36px)',
-          borderRadius: 18,
-          background: mode.bg,
-          display: 'flex', flexDirection: 'column', gap: 14,
-          height: '100%', cursor: 'default',
-          transformStyle: 'preserve-3d',
-          willChange: 'transform',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <motion.span
-            animate={{ boxShadow: hovered ? `0 0 16px ${mode.dot}` : `0 0 6px ${mode.dot}88` }}
-            style={{ width: 10, height: 10, borderRadius: '50%', background: mode.dot, flexShrink: 0 }}
-          />
-          <span style={{ fontWeight: 800, color: '#fff', fontSize: '1.05rem' }}>{mode.name}</span>
+    <Reveal from={{ opacity: 0, y: 20, x: index % 2 === 0 ? -16 : 16 }} delay={index * 0.06}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 16,
+        padding: 'clamp(14px, 2vw, 20px) clamp(16px, 2.5vw, 24px)',
+        borderRadius: 14,
+        border: `1px solid ${hasData ? 'rgba(124,58,237,0.25)' : 'rgba(255,255,255,0.05)'}`,
+        background: hasData ? 'rgba(124,58,237,0.06)' : 'rgba(255,255,255,0.02)',
+        transition: 'border-color 0.3s',
+      }}>
+        {/* skull / status */}
+        <span style={{ fontSize: 18, flexShrink: 0, opacity: hasData ? 1 : 0.25 }}>
+          {hasData ? '💀' : '👁️'}
+        </span>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+            <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem', fontWeight: 700, color: hasData ? '#e2e8f0' : '#334155' }}>
+              {agent.name}
+            </span>
+            <span style={{
+              fontSize: '0.8rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums',
+              color: hasData ? '#60a5fa' : '#1e293b',
+              textShadow: hasData ? '0 0 16px rgba(96,165,250,0.4)' : 'none',
+            }}>
+              {hasData ? fmt(tokens) : 'not yet'}
+            </span>
+          </div>
+          {/* bar */}
+          <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+            <motion.div
+              initial={{ width: 0 }}
+              whileInView={{ width: `${pct}%` }}
+              viewport={{ once: true }}
+              transition={{ duration: 1.1, delay: index * 0.06 + 0.3, ease: EXPO }}
+              style={{ height: '100%', borderRadius: 2, background: 'linear-gradient(90deg, #7c3aed, #3b82f6)' }}
+            />
+          </div>
         </div>
-        <p style={{ color: '#cbd5e1', fontSize: '0.9rem', lineHeight: 1.75, margin: 0 }}>{mode.desc}</p>
-      </motion.div>
+
+        <span style={{ fontSize: '0.7rem', color: '#1e293b', flexShrink: 0, width: 72, textAlign: 'right', fontWeight: 600 }}>
+          {agent.org}
+        </span>
+      </div>
     </Reveal>
   )
 }
@@ -201,6 +216,9 @@ function AnimatedLeaderboard({ rows, loading }) {
 export default function Landing({ onAuthClick }) {
   const [leaderboard, setLeaderboard] = useState([])
   const [lbLoading, setLbLoading] = useState(true)
+  const [graveyard, setGraveyard] = useState(
+    KNOWN_AGENTS.map((a) => ({ ...a, tokens: 0 }))
+  )
   const heroRef = useRef(null)
 
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
@@ -214,6 +232,11 @@ export default function Landing({ onAuthClick }) {
     fetchLeaderboard('alltime', 5)
       .then(setLeaderboard).catch(() => {})
       .finally(() => setLbLoading(false))
+
+    fetchTopAgents().then((data) => {
+      const map = Object.fromEntries(data.map((d) => [d.name, d.tokens]))
+      setGraveyard(KNOWN_AGENTS.map((a) => ({ ...a, tokens: map[a.name] ?? 0 })))
+    }).catch(() => {})
   }, [])
 
   return (
@@ -352,29 +375,33 @@ export default function Landing({ onAuthClick }) {
 
       <GradientDivider />
 
-      {/* ── three modes ──────────────────────────────────────────────────── */}
+      {/* ── the graveyard ────────────────────────────────────────────────── */}
       <section style={S.section}>
-        <div style={S.inner()}>
+        <div style={{ ...S.inner(840) }}>
           <Reveal from={{ opacity: 0, y: 12 }}>
             <p style={{ textAlign: 'center', fontSize: 11, fontWeight: 800, color: '#7c3aed', letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 16 }}>
-              Response modes
+              The Graveyard
             </p>
           </Reveal>
-          <SweepText delay={0.05} style={{ textAlign: 'center', marginBottom: 'clamp(40px, 5vw, 64px)' }}>
-            Three modes.<br />Your choice.
+          <SweepText delay={0.05} style={{ textAlign: 'center', marginBottom: 12 }}>
+            Known enemies.
           </SweepText>
-
-          <Reveal from={{ opacity: 0, y: 10 }} delay={0.1} style={{ marginBottom: 'clamp(20px, 3vw, 32px)' }}>
-            <p style={{ textAlign: 'center', color: '#475569', fontSize: '0.95rem' }}>
-              Configure per-agent. Mix and match. Escalate anytime.
+          <Reveal from={{ opacity: 0 }} delay={0.1} style={{ marginBottom: 'clamp(36px, 5vw, 56px)' }}>
+            <p style={{ textAlign: 'center', color: '#334155', fontSize: '0.95rem', lineHeight: 1.7 }}>
+              Every AI agent that has crawled protected sites — and paid for it in tokens.
             </p>
           </Reveal>
 
-          <div style={S.grid3}>
-            {MODES.map((mode, i) => (
-              <ModeCard key={mode.name} mode={mode} delay={i * 0.1} />
-            ))}
-          </div>
+          {(() => {
+            const max = Math.max(...graveyard.map((g) => g.tokens), 1)
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 10 }}>
+                {graveyard.map((g, i) => (
+                  <GraveyardEntry key={g.name} agent={g} tokens={g.tokens} max={max} index={i} />
+                ))}
+              </div>
+            )
+          })()}
         </div>
       </section>
 
