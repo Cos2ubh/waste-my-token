@@ -6,6 +6,72 @@ import { fetchLeaderboard } from '../lib/api'
 
 const EXPO = [0.22, 1, 0.36, 1]
 
+function TrapLink({ username }) {
+  const [copied, setCopied] = useState(false)
+  const url = `${window.location.origin}/trap/${username}`
+
+  function copy() {
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2500)
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EXPO }}
+      style={{
+        marginBottom: 28,
+        padding: 'clamp(24px, 3vw, 36px)',
+        borderRadius: 20,
+        background: 'radial-gradient(ellipse at 50% 0%, rgba(124,58,237,0.18) 0%, rgba(5,5,8,0) 70%)',
+        border: '1px solid rgba(124,58,237,0.35)',
+      }}
+    >
+      <p style={{ fontSize: 11, fontWeight: 800, color: '#7c3aed', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 10 }}>
+        Your Trap Link
+      </p>
+      <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: 20, lineHeight: 1.7, maxWidth: 560 }}>
+        Paste this link anywhere — a chat, a tweet, a blog post, a forum comment.
+        Any AI bot that follows it gets their context window wiped.
+        Every token they waste goes on your score.
+      </p>
+
+      {/* the link */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        padding: '14px 18px', borderRadius: 14,
+        background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.08)',
+        marginBottom: 16,
+      }}>
+        <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.95rem', color: '#e2e8f0', flex: 1, wordBreak: 'break-all' }}>
+          {url}
+        </span>
+        <motion.button
+          whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+          onClick={copy}
+          style={{
+            padding: '9px 20px', borderRadius: 10, fontSize: '0.875rem', fontWeight: 700,
+            cursor: 'pointer', border: 'none', flexShrink: 0,
+            background: copied ? 'rgba(34,197,94,0.15)' : 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+            color: copied ? '#22c55e' : '#fff',
+            transition: 'background 0.2s, color 0.2s',
+          }}
+        >
+          {copied ? '✓ Copied!' : 'Copy link'}
+        </motion.button>
+      </div>
+
+      <p style={{ fontSize: '0.8rem', color: '#334155' }}>
+        Share it on{' '}
+        {['Twitter/X', 'Reddit', 'WhatsApp', 'your blog', 'GitHub'].map((p, i, arr) => (
+          <span key={p}><span style={{ color: '#475569' }}>{p}</span>{i < arr.length - 1 ? ', ' : ''}</span>
+        ))}
+        {' '}— anywhere bots crawl.
+      </p>
+    </motion.div>
+  )
+}
+
 function fmt(n) {
   if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B'
   if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
@@ -210,6 +276,9 @@ export default function Dashboard({ user, onLogout }) {
 
       {/* page body */}
       <main style={{ maxWidth: 1080, margin: '0 auto', padding: 'clamp(40px, 5vh, 64px) clamp(24px, 5vw, 56px)' }}>
+
+        {/* ── trap link — primary CTA ── */}
+        {profile?.username && <TrapLink username={profile.username} />}
 
         {/* rank hero */}
         <motion.div
