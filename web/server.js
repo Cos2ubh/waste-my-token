@@ -192,6 +192,8 @@ setInterval(poll, 4000)
 const STREAM_CHUNK = generateVoidPage('stream', 1).slice(0, 8000)
 const DRIP_INTERVAL = 400 // ms between chunks
 
+const MAX_INFINITE_MS = 10 * 60 * 1000 // 10 minutes max per connection
+
 async function serveInfinite(id, botName, res) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.setHeader('Transfer-Encoding', 'chunked')
@@ -199,27 +201,44 @@ async function serveInfinite(id, botName, res) {
 
   let totalChars = 0
   let page = 1
+  let alive = true
+  const startedAt = Date.now()
 
-  const interval = setInterval(() => {
-    if (res.writableEnded) { clearInterval(interval); return }
-    const chunk = generateVoidPage(id, ((page++ - 1) % 8) + 1).slice(0, 8000)
-    res.write(chunk)
-    totalChars += chunk.length
-  }, DRIP_INTERVAL)
-
-  // Log burn every 30 seconds while streaming
-  const burnInterval = setInterval(async () => {
-    if (res.writableEnded) { clearInterval(burnInterval); return }
-    await logBurn(id, botName, totalChars)
-    console.log(`[infinite] ${botName} → ${id} — ${Math.floor(totalChars/4).toLocaleString()} tokens so far`)
-  }, 30000)
-
-  res.on('close', () => {
+  function cleanup(reason) {
+    if (!alive) return
+    alive = false
     clearInterval(interval)
     clearInterval(burnInterval)
+    clearTimeout(maxTimer)
     logBurn(id, botName, totalChars)
-    console.log(`[infinite:end] ${botName} → ${id} — ${Math.floor(totalChars/4).toLocaleString()} tokens total`)
-  })
+    console.log(`[infinite:${reason}] ${botName} → ${id} — ${Math.floor(totalChars/4).toLocaleString()} tokens`)
+  }
+
+  const interval = setInterval(() => {
+    if (!alive || res.writableEnded) { cleanup('ended'); return }
+    try {
+      const chunk = generateVoidPage(id, ((page++ - 1) % 8) + 1).slice(0, 8000)
+      const ok = res.write(chunk)
+      totalChars += chunk.length
+      // If write returns false, client backpressure — likely disconnected
+      if (!ok) cleanup('backpressure')
+    } catch {
+      cleanup('write-error')
+    }
+  }, DRIP_INTERVAL)
+
+  // Log burn every 60 seconds while streaming
+  const burnInterval = setInterval(async () => {
+    if (!alive) { clearInterval(burnInterval); return }
+    await logBurn(id, botName, totalChars)
+    console.log(`[infinite] ${botName} → ${id} — ${Math.floor(totalChars/4).toLocaleString()} tokens`)
+  }, 60000)
+
+  // Hard cap — stop after MAX_INFINITE_MS regardless
+  const maxTimer = setTimeout(() => cleanup('timeout'), MAX_INFINITE_MS)
+
+  res.on('close', () => cleanup('close'))
+  res.on('error', () => cleanup('error'))
 }
 
 // ── GET /data/:id (disguised as research archive) + legacy /void/:id ──────────
