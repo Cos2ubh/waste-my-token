@@ -283,10 +283,11 @@ export default function BurnCaptureModal({ voidId, totalTokens, onClose, onClaim
                 </motion.button>
               </form>
 
-              <button onClick={onClose} style={{
+              <button onClick={(e) => { e.stopPropagation(); onClose(); }} style={{
                 display: 'block', width: '100%', marginTop: 14,
                 background: 'none', border: 'none', cursor: 'pointer',
                 fontSize: '0.8rem', color: '#334155', textAlign: 'center',
+                position: 'relative', zIndex: 10,
               }}
               onMouseEnter={e => e.target.style.color = '#64748b'}
               onMouseLeave={e => e.target.style.color = '#334155'}>
