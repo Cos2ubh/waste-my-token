@@ -13,6 +13,14 @@
       "dest": "https://waste-my-token-production.up.railway.app/trap/$1"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
+    },
+    {
+      "src": "/(.*\\.(js|css|ico|png|svg|json|woff|woff2|ttf))",
+      "dest": "/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
