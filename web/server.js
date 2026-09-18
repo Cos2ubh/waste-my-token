@@ -200,9 +200,9 @@ async function serveInfinite(id, botName, res) {
   res.write('<html><body><pre>')
 
   let totalChars = 0
+  let lastLoggedChars = 0  // track delta — only log new bytes since last checkpoint
   let page = 1
   let alive = true
-  const startedAt = Date.now()
 
   function cleanup(reason) {
     if (!alive) return
@@ -210,8 +210,9 @@ async function serveInfinite(id, botName, res) {
     clearInterval(interval)
     clearInterval(burnInterval)
     clearTimeout(maxTimer)
-    logBurn(id, botName, totalChars)
-    console.log(`[infinite:${reason}] ${botName} → ${id} — ${Math.floor(totalChars/4).toLocaleString()} tokens`)
+    const delta = totalChars - lastLoggedChars
+    if (delta > 0) logBurn(id, botName, delta)
+    console.log(`[infinite:${reason}] ${botName} → ${id} — ${Math.floor(totalChars/4).toLocaleString()} tokens total`)
   }
 
   const interval = setInterval(() => {
@@ -227,11 +228,15 @@ async function serveInfinite(id, botName, res) {
     }
   }, DRIP_INTERVAL)
 
-  // Log burn every 60 seconds while streaming
+  // Log burn delta every 60 seconds — only new bytes since last checkpoint
   const burnInterval = setInterval(async () => {
     if (!alive) { clearInterval(burnInterval); return }
-    await logBurn(id, botName, totalChars)
-    console.log(`[infinite] ${botName} → ${id} — ${Math.floor(totalChars/4).toLocaleString()} tokens`)
+    const delta = totalChars - lastLoggedChars
+    if (delta > 0) {
+      await logBurn(id, botName, delta)
+      lastLoggedChars = totalChars
+      console.log(`[infinite] ${botName} → ${id} — +${Math.floor(delta/4).toLocaleString()} tokens (${Math.floor(totalChars/4).toLocaleString()} total)`)
+    }
   }, 60000)
 
   // Hard cap — stop after MAX_INFINITE_MS regardless
