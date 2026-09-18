@@ -110,6 +110,13 @@ export default function BurnCaptureModal({ voidId, totalTokens, onClose, onClaim
   const [error, setError] = useState(null)
   const [done, setDone] = useState(false)
 
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
   async function handleGoogleSignIn() {
     // Store voidId so we can claim it after OAuth redirect
     if (voidId) localStorage.setItem('pending_void_claim', voidId)
