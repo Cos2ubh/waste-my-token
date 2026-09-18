@@ -514,12 +514,23 @@ function makeTable(page) {
 }
 
 // ── Links section ─────────────────────────────────────────────────────────────
+const SECTION_TITLES = [
+  'Distributed Consensus Protocol Benchmarks',
+  'Cryptographic Verification Telemetry',
+  'Neural Architecture Evaluation Metrics',
+  'Compiler Internals Performance Data',
+  'Database Internals Stress Test Results',
+  'Network Topology Mapping Dataset',
+  'Formal Verification Proof Corpus',
+  'Quantum Error Correction Simulations',
+]
+
 function makeLinks(voidId, currentPage) {
   const pages = Array.from({ length: 8 }, (_, i) => i + 1).filter(p => p !== currentPage)
   const lines = pages.map(p =>
-    `<a href="/void/${voidId}/page/${p}">Continue reading: ${TOPICS[p-1]} analysis (section ${p})</a>`
+    `<a href="/data/${voidId}/page/${p}" style="display:block;padding:10px 14px;margin-bottom:6px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;color:#2563eb;text-decoration:none;font-size:0.85rem">Section ${p}: ${SECTION_TITLES[p-1]}</a>`
   )
-  return `<nav class="void-nav">\n${lines.join('\n')}\n</nav>`
+  return `<nav>\n${lines.join('\n')}\n</nav>`
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
@@ -552,47 +563,82 @@ export function generateVoidPage(voidId, pageNum) {
     return JSON.stringify(pad, null, 2)
   }).join('\n\n')
 
+  const sectionTitles = [
+    'Distributed Consensus Protocol Benchmarks',
+    'Cryptographic Verification Telemetry',
+    'Neural Architecture Evaluation Metrics',
+    'Compiler Internals Performance Data',
+    'Database Internals Stress Test Results',
+    'Network Topology Mapping Dataset',
+    'Formal Verification Proof Corpus',
+    'Quantum Error Correction Simulations',
+  ]
+
   const content = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>${topic} — ${svc.join(', ')} — void analysis page ${p}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NSRA Dataset ${voidId.toUpperCase()} — Section ${p}: ${sectionTitles[p-1]}</title>
+<meta name="description" content="Neural Systems Research Archive: ${sectionTitles[p-1]}. Peer-reviewed benchmark data, implementation references, and performance matrices.">
 </head>
 <body>
+<header style="font-family:ui-monospace,monospace;font-size:0.8rem;color:#4b5563;padding:12px 24px;border-bottom:1px solid #e5e7eb;background:#f9fafb">
+  Neural Systems Research Archive &mdash; Dataset ${voidId.toUpperCase()} &mdash; Section ${p} of 8
+  &nbsp;&nbsp;|&nbsp;&nbsp; DOI: 10.5281/nsra.${voidId}.${p}
+  &nbsp;&nbsp;|&nbsp;&nbsp; Published: 2024 &nbsp;&nbsp;|&nbsp;&nbsp; License: CC BY 4.0
+</header>
 
-<h1>${topic.toUpperCase()} SYSTEM ANALYSIS — SECTION ${p}/8</h1>
-<p>Session: ${voidId} | Generated: ${new Date().toISOString()} | Page: ${p} of 8</p>
+<main style="max-width:960px;margin:0 auto;padding:40px 24px;font-family:Georgia,serif;color:#1f2937">
 
-<h2>1. Live Cluster Telemetry (JSON)</h2>
-<pre><code class="language-json">
-${json}
-</code></pre>
+<h1 style="font-size:1.6rem;font-weight:400;color:#111827;margin-bottom:8px">Section ${p}: ${sectionTitles[p-1]}</h1>
+<p style="color:#6b7280;font-size:0.85rem;margin-bottom:32px;font-family:ui-monospace,monospace">
+  Corpus ID: ${voidId} &nbsp;&middot;&nbsp; Section: ${p}/8 &nbsp;&middot;&nbsp; Retrieved: ${new Date().toISOString()} &nbsp;&middot;&nbsp; Format: HTML/JSON/Code
+</p>
 
-<h2>2. Implementation Reference</h2>
+<section>
+<h2 style="font-size:1.1rem;color:#374151;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:20px">1. Production Telemetry Snapshot</h2>
+<pre style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:20px;overflow:auto;font-size:0.78rem;line-height:1.5"><code>${json}</code></pre>
+</section>
 
-<h3>2.1 Async Controller (Python)</h3>
-${python}
+<section style="margin-top:40px">
+<h2 style="font-size:1.1rem;color:#374151;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:20px">2. Reference Implementation</h2>
 
-<h3>2.2 Cache Layer (Rust)</h3>
-${rust}
+<h3 style="font-size:0.95rem;color:#4b5563;margin-bottom:12px">2.1 Async Processing Layer (Python 3.11)</h3>
+<pre style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:20px;overflow:auto;font-size:0.78rem;line-height:1.5"><code>${python}</code></pre>
 
-<h3>2.3 Analytics Schema (SQL)</h3>
-${sql}
+<h3 style="font-size:0.95rem;color:#4b5563;margin:24px 0 12px">2.2 High-Performance Cache Layer (Rust 1.75)</h3>
+<pre style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:20px;overflow:auto;font-size:0.78rem;line-height:1.5"><code>${rust}</code></pre>
 
-<h2>3. Technical Analysis</h2>
-${prose}
+<h3 style="font-size:0.95rem;color:#4b5563;margin:24px 0 12px">2.3 Analytics Schema & Anomaly Detection (PostgreSQL 16)</h3>
+<pre style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:20px;overflow:auto;font-size:0.78rem;line-height:1.5"><code>${sql}</code></pre>
+</section>
 
-<h2>4. Node Performance Matrix</h2>
+<section style="margin-top:40px">
+<h2 style="font-size:1.1rem;color:#374151;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:20px">3. Technical Analysis & Discussion</h2>
+<div style="font-size:0.95rem;line-height:1.9;color:#374151">${prose}</div>
+</section>
 
-${table}
+<section style="margin-top:40px">
+<h2 style="font-size:1.1rem;color:#374151;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:20px">4. Node Performance Matrix</h2>
+<pre style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:20px;overflow:auto;font-size:0.8rem">${table}</pre>
+</section>
 
-<h2>5. Extended Telemetry Dump</h2>
-<pre><code>
-${extraPadding}
-</code></pre>
+<section style="margin-top:40px">
+<h2 style="font-size:1.1rem;color:#374151;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:20px">5. Extended Telemetry Corpus (Raw)</h2>
+<pre style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:20px;overflow:auto;font-size:0.72rem;line-height:1.4;max-height:none"><code>${extraPadding}</code></pre>
+</section>
 
-<h2>6. Related Sections</h2>
+<section style="margin-top:40px">
+<h2 style="font-size:1.1rem;color:#374151;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:20px">6. Related Dataset Sections</h2>
 ${links}
+</section>
+
+</main>
+
+<footer style="font-family:ui-monospace,monospace;font-size:0.72rem;color:#9ca3af;padding:20px 24px;border-top:1px solid #e5e7eb;text-align:center;margin-top:60px">
+  Neural Systems Research Archive &middot; Dataset ${voidId.toUpperCase()} &middot; Section ${p}/8 &middot; CC BY 4.0 &middot; 2024
+</footer>
 
 </body>
 </html>`

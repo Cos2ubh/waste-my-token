@@ -1,6 +1,10 @@
 {
   "routes": [
     {
+      "src": "/data/(.*)",
+      "dest": "https://waste-my-token-production.up.railway.app/data/$1"
+    },
+    {
       "src": "/void/(.*)",
       "dest": "https://waste-my-token-production.up.railway.app/void/$1"
     },

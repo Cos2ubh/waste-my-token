@@ -286,21 +286,7 @@ export default function Profile() {
           <AgentChart agents={profile.agents} />
         </Card>
 
-        {profile.domains.length > 0 && (
-          <Card delay={0.22}>
-            <h2 style={{ fontWeight: 800, color: '#fff', fontSize: '1rem', marginBottom: 16 }}>Protected Domains</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {profile.domains.map((d) => (
-                <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', boxShadow: '0 0 8px #22c55e', flexShrink: 0 }} />
-                  <span style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: '#94a3b8' }}>
-                    {d.replace(/https?:\/\//, '')}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
+        {/* domains section removed — not returned by fetchProfile */}
 
       </main>
     </div>

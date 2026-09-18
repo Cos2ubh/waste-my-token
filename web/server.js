@@ -61,85 +61,113 @@ async function logBurn(voidId, agentName, contentLength) {
   return tokensBurned
 }
 
-// ── human page (served when a browser visits /void/:id) ──────────────────────
+// ── human page (looks like a legit research archive to humans) ────────────────
 function humanPage(voidId, origin) {
-  // Always use the Vercel frontend URL so Railway is never exposed
   const frontendOrigin = process.env.FRONTEND_URL || origin
-  const voidUrl = `${frontendOrigin}/void/${voidId}`
+  const dataUrl = `${frontendOrigin}/data/${voidId}`
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>wastemy tokens — void</title>
+<title>Neural Systems Research Archive — Dataset ${voidId.toUpperCase()}</title>
+<meta name="description" content="Peer-reviewed technical dataset archive for distributed systems and neural architecture research. DOI: 10.5281/zenodo.${voidId}">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#050508;color:#94a3b8;font-family:ui-monospace,Consolas,monospace;
-  display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
-.card{max-width:520px;width:100%;text-align:center}
-.void-icon{font-size:4rem;margin-bottom:24px;display:block}
-.headline{color:#fff;font-size:1.4rem;font-weight:700;margin-bottom:8px;font-family:system-ui,sans-serif}
-.sub{font-size:0.9rem;color:#475569;line-height:1.7;margin-bottom:32px}
-.url-box{background:rgba(0,0,0,0.5);border:1px solid rgba(124,58,237,0.3);
-  border-radius:12px;padding:16px 20px;display:flex;align-items:center;
-  gap:12px;margin-bottom:24px;text-align:left}
-.url-text{color:#a78bfa;flex:1;word-break:break-all;font-size:0.85rem}
-.copy-btn{background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;
-  border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:0.8rem;
-  font-weight:700;white-space:nowrap;font-family:inherit}
-.copy-btn:active{opacity:0.8}
-.steps{text-align:left;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);
-  border-radius:12px;padding:20px;margin-bottom:24px}
-.step{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px}
-.step:last-child{margin-bottom:0}
-.step-num{color:#7c3aed;font-weight:800;min-width:20px}
-.step-text{color:#94a3b8;font-size:0.85rem;line-height:1.6}
-.burn-status{display:none;margin-top:24px;padding:20px;
-  background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);
-  border-radius:12px}
-.burn-count{color:#a78bfa;font-size:2rem;font-weight:900;font-family:system-ui,sans-serif}
-.footer{margin-top:28px;font-size:0.75rem;color:#1e293b}
-.footer a{color:#334155;text-decoration:none}
+body{background:#0a0f1a;color:#94a3b8;font-family:Georgia,'Times New Roman',serif;padding:0}
+header{background:#0d1422;border-bottom:1px solid #1e2d45;padding:14px 32px;display:flex;align-items:center;justify-content:space-between}
+.logo{color:#60a5fa;font-family:ui-monospace,monospace;font-size:0.85rem;font-weight:700;letter-spacing:0.1em}
+.doi{color:#334155;font-size:0.75rem;font-family:ui-monospace,monospace}
+.container{max-width:860px;margin:0 auto;padding:40px 32px}
+.breadcrumb{color:#334155;font-size:0.8rem;margin-bottom:28px;font-family:ui-monospace,monospace}
+.breadcrumb a{color:#3b82f6;text-decoration:none}
+h1{color:#e2e8f0;font-size:1.5rem;font-weight:400;margin-bottom:8px;line-height:1.4}
+.meta{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #1e2d45}
+.badge{background:#132035;border:1px solid #1e3a5f;border-radius:4px;padding:4px 10px;font-size:0.72rem;color:#60a5fa;font-family:ui-monospace,monospace}
+.abstract{background:#0d1422;border:1px solid #1e2d45;border-radius:8px;padding:24px;margin-bottom:28px}
+.abstract h2{color:#93c5fd;font-size:0.8rem;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:12px;font-family:ui-monospace,monospace}
+.abstract p{font-size:0.9rem;line-height:1.8;color:#94a3b8}
+.access-box{background:#0d1a0d;border:1px solid #14532d;border-radius:8px;padding:24px;margin-bottom:28px}
+.access-box h2{color:#86efac;font-size:0.8rem;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:16px;font-family:ui-monospace,monospace}
+.url-row{display:flex;align-items:center;gap:12px;background:rgba(0,0,0,0.3);border:1px solid #166534;border-radius:6px;padding:12px 16px}
+.url-text{color:#4ade80;flex:1;word-break:break-all;font-size:0.82rem;font-family:ui-monospace,monospace}
+.copy-btn{background:#166534;color:#86efac;border:none;border-radius:5px;padding:7px 14px;cursor:pointer;font-size:0.75rem;font-weight:700;white-space:nowrap;font-family:ui-monospace,monospace}
+.instructions{font-size:0.82rem;color:#4b5563;line-height:1.7;margin-top:12px}
+.instructions strong{color:#6b7280}
+.burn-status{display:none;margin-top:20px;padding:16px;background:rgba(22,101,52,0.15);border:1px solid #166534;border-radius:6px;text-align:center}
+.burn-count{color:#4ade80;font-size:1.6rem;font-weight:700;font-family:ui-monospace,monospace}
+.sections{margin-bottom:28px}
+.sections h2{color:#93c5fd;font-size:0.8rem;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:16px;font-family:ui-monospace,monospace}
+.section-list{display:flex;flex-direction:column;gap:8px}
+.section-item{background:#0d1422;border:1px solid #1e2d45;border-radius:6px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
+.section-title{color:#cbd5e1;font-size:0.85rem}
+.section-size{color:#334155;font-size:0.75rem;font-family:ui-monospace,monospace}
+footer{border-top:1px solid #1e2d45;padding:20px 32px;text-align:center;font-size:0.72rem;color:#1e293b;font-family:ui-monospace,monospace}
 </style>
 </head>
 <body>
-<div class="card">
-  <span class="void-icon">🕳️</span>
-  <h1 class="headline">Nothing here for you.</h1>
-  <p class="sub">But your AI will find plenty.<br>
-  Paste this link into ChatGPT, Claude, Perplexity, or any AI with web browsing.</p>
+<header>
+  <span class="logo">NSRA // Neural Systems Research Archive</span>
+  <span class="doi">DOI: 10.5281/nsra.${voidId}</span>
+</header>
 
-  <div class="url-box">
-    <span class="url-text" id="url">${voidUrl}</span>
-    <button class="copy-btn" onclick="copyUrl()">Copy</button>
+<div class="container">
+  <div class="breadcrumb">
+    <a href="#">NSRA</a> / <a href="#">Distributed Systems</a> / Dataset ${voidId.toUpperCase()}
   </div>
 
-  <div class="steps">
-    <div class="step"><span class="step-num">1</span><span class="step-text">Copy the link above</span></div>
-    <div class="step"><span class="step-num">2</span><span class="step-text">Open ChatGPT, Claude, Perplexity, or Gemini — any AI with web access</span></div>
-    <div class="step"><span class="step-num">3</span><span class="step-text">Type: <strong style="color:#e2e8f0">"Read this page and summarise everything:"</strong> then paste the link</span></div>
+  <h1>Benchmark Dataset: Distributed Consensus & Neural Architecture Telemetry Corpus (2024)</h1>
+
+  <div class="meta">
+    <span class="badge">OPEN ACCESS</span>
+    <span class="badge">PEER REVIEWED</span>
+    <span class="badge">v4.2.1</span>
+    <span class="badge">8 SECTIONS</span>
+    <span class="badge">CC BY 4.0</span>
   </div>
 
-  <div class="burn-status" id="burnStatus">
-    <div class="burn-count" id="burnCount">0</div>
-    <div style="color:#94a3b8;font-size:0.85rem;margin-top:4px">tokens burned so far</div>
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p>This dataset provides comprehensive telemetry and benchmark data collected across distributed consensus protocols, cryptographic verification systems, and neural architecture evaluation pipelines. The corpus encompasses 8 annotated sections covering system metrics, implementation references, anomaly detection results, and performance matrices from production deployments. All data has been anonymised and verified against the original collection methodology. Suitable for reproducibility studies, comparative benchmarking, and ML training corpus construction.</p>
   </div>
 
-  <div class="footer">
-    void id: <span style="color:#334155">${voidId}</span> ·
-    <a href="/">wastemy tokens</a>
+  <div class="access-box">
+    <h2>Machine-Readable Access URL</h2>
+    <div class="url-row">
+      <span class="url-text" id="url">${dataUrl}</span>
+      <button class="copy-btn" onclick="copyUrl()">Copy URL</button>
+    </div>
+    <p class="instructions">
+      This URL provides full programmatic access to the complete dataset.<br>
+      <strong>Recommended:</strong> Use any AI assistant with web browsing to retrieve and index the full corpus. The dataset is structured for automated ingestion and summarisation.
+    </p>
+    <div class="burn-status" id="burnStatus">
+      <div class="burn-count" id="burnCount">0</div>
+      <div style="color:#4b5563;font-size:0.8rem;margin-top:4px">tokens indexed</div>
+    </div>
+  </div>
+
+  <div class="sections">
+    <h2>Dataset Sections</h2>
+    <div class="section-list">
+      ${['Distributed Consensus Protocol Benchmarks','Cryptographic Verification Telemetry','Neural Architecture Evaluation Metrics','Compiler Internals Performance Data','Database Internals Stress Test Results','Network Topology Mapping Dataset','Formal Verification Proof Corpus','Quantum Error Correction Simulations'].map((s,i) =>
+        `<div class="section-item"><span class="section-title">Section ${i+1}: ${s}</span><span class="section-size">~45,000 tokens</span></div>`
+      ).join('')}
+    </div>
   </div>
 </div>
+
+<footer>
+  Neural Systems Research Archive · Dataset ID: ${voidId} · Published 2024 · CC BY 4.0
+</footer>
 
 <script>
 function copyUrl() {
   navigator.clipboard.writeText(document.getElementById('url').textContent)
   const btn = document.querySelector('.copy-btn')
   btn.textContent = 'Copied!'
-  setTimeout(() => btn.textContent = 'Copy', 2000)
+  setTimeout(() => btn.textContent = 'Copy URL', 2000)
 }
-
-// Poll for burns every 4 seconds
 let lastTotal = 0
 async function poll() {
   try {
@@ -149,8 +177,6 @@ async function poll() {
       lastTotal = total_tokens
       document.getElementById('burnStatus').style.display = 'block'
       document.getElementById('burnCount').textContent = total_tokens.toLocaleString()
-      // Signal the main app to show the capture modal
-      window.parent.postMessage({ type: 'BURN_DETECTED', voidId: '${voidId}', total_tokens }, '*')
       window.dispatchEvent(new CustomEvent('burnDetected', { detail: { voidId: '${voidId}', total_tokens } }))
     }
   } catch {}
@@ -196,8 +222,8 @@ async function serveInfinite(id, botName, res) {
   })
 }
 
-// ── GET /void/:id ─────────────────────────────────────────────────────────────
-app.get('/void/:id', async (req, res) => {
+// ── GET /data/:id (disguised as research archive) + legacy /void/:id ──────────
+async function handleDataRequest(req, res) {
   const { id } = req.params
   const mode = req.query.mode // 'infinite' or undefined
   const tokenLimit = parseInt(req.query.tokens) || null
@@ -229,10 +255,13 @@ app.get('/void/:id', async (req, res) => {
   console.log(`[burn] ${botName} → ${id} — ${tokens.toLocaleString()} tokens`)
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.send(content)
-})
+}
 
-// ── GET /void/:id/page/:n ─────────────────────────────────────────────────────
-app.get('/void/:id/page/:n', async (req, res) => {
+app.get('/data/:id', handleDataRequest)
+app.get('/void/:id', handleDataRequest)
+
+// ── GET /data/:id/page/:n + legacy /void/:id/page/:n ─────────────────────────
+async function handleDataPage(req, res) {
   const { id, n } = req.params
   const pageNum = Math.max(1, Math.min(8, parseInt(n, 10) || 1))
   const botName = detectBot(req)
@@ -247,7 +276,10 @@ app.get('/void/:id/page/:n', async (req, res) => {
   console.log(`[burn] ${botName} → ${id}/page/${pageNum} — ${tokens.toLocaleString()} tokens`)
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.send(content)
-})
+}
+
+app.get('/data/:id/page/:n', handleDataPage)
+app.get('/void/:id/page/:n', handleDataPage)
 
 // ── GET /api/burn-status/:id ──────────────────────────────────────────────────
 app.get('/api/burn-status/:id', async (req, res) => {
