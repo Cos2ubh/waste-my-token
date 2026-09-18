@@ -56,13 +56,13 @@ function VoidGenerator({ user }) {
   const [voidId, setVoidId] = useState(() => localStorage.getItem(VOID_KEY) ?? null)
   const [generating, setGenerating] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [burn, setBurn] = useState(null) // { total_tokens, burn_count }
+  const [burn, setBurn] = useState(null)
   const [showModal, setShowModal] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
   const pollRef = useRef(null)
 
   const voidUrl = voidId ? `${window.location.origin}/void/${voidId}` : null
 
-  // start polling once we have a void ID
   const startPolling = useCallback((id) => {
     if (pollRef.current) return
     pollRef.current = setInterval(async () => {
@@ -71,11 +71,12 @@ function VoidGenerator({ user }) {
         const data = await res.json()
         if (data.burned && data.total_tokens > 0) {
           setBurn(data)
-          setShowModal(true)
+          // Only show modal if not dismissed and user is not logged in
+          setShowModal(prev => prev || !dismissed)
         }
-      } catch { /* network error, try again next tick */ }
+      } catch {}
     }, 4000)
-  }, [])
+  }, [dismissed])
 
   useEffect(() => {
     if (voidId) startPolling(voidId)
@@ -141,12 +142,12 @@ function VoidGenerator({ user }) {
 
   return (
     <>
-      {showModal && burn && (
+      {showModal && burn && !user && !dismissed && (
         <BurnCaptureModal
           voidId={voidId}
           totalTokens={burn.total_tokens}
-          onClose={() => setShowModal(false)}
-          onClaimed={() => { localStorage.removeItem(VOID_KEY) }}
+          onClose={() => { setShowModal(false); setDismissed(true) }}
+          onClaimed={() => { localStorage.removeItem(VOID_KEY); setDismissed(true) }}
         />
       )}
 
