@@ -49,6 +49,8 @@ function detectBot(req) {
 
 async function logBurn(voidId, agentName, contentLength) {
   const tokensBurned = Math.floor(contentLength / 4)
+  // Ensure void_session exists before inserting burn (upsert is safe)
+  await supabase.from('void_sessions').upsert({ id: voidId }, { onConflict: 'id', ignoreDuplicates: true })
   const { error } = await supabase.from('burns').insert({
     void_id: voidId,
     agent_name: agentName,
