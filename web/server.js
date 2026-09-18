@@ -162,9 +162,45 @@ setInterval(poll, 4000)
 </html>`
 }
 
+// ── Infinite streaming void — never completes ─────────────────────────────────
+const STREAM_CHUNK = generateVoidPage('stream', 1).slice(0, 8000)
+const DRIP_INTERVAL = 400 // ms between chunks
+
+async function serveInfinite(id, botName, res) {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.setHeader('Transfer-Encoding', 'chunked')
+  res.write('<html><body><pre>')
+
+  let totalChars = 0
+  let page = 1
+
+  const interval = setInterval(() => {
+    if (res.writableEnded) { clearInterval(interval); return }
+    const chunk = generateVoidPage(id, ((page++ - 1) % 8) + 1).slice(0, 8000)
+    res.write(chunk)
+    totalChars += chunk.length
+  }, DRIP_INTERVAL)
+
+  // Log burn every 30 seconds while streaming
+  const burnInterval = setInterval(async () => {
+    if (res.writableEnded) { clearInterval(burnInterval); return }
+    await logBurn(id, botName, totalChars)
+    console.log(`[infinite] ${botName} → ${id} — ${Math.floor(totalChars/4).toLocaleString()} tokens so far`)
+  }, 30000)
+
+  res.on('close', () => {
+    clearInterval(interval)
+    clearInterval(burnInterval)
+    logBurn(id, botName, totalChars)
+    console.log(`[infinite:end] ${botName} → ${id} — ${Math.floor(totalChars/4).toLocaleString()} tokens total`)
+  })
+}
+
 // ── GET /void/:id ─────────────────────────────────────────────────────────────
 app.get('/void/:id', async (req, res) => {
   const { id } = req.params
+  const mode = req.query.mode // 'infinite' or undefined
+  const tokenLimit = parseInt(req.query.tokens) || null
   const botName = detectBot(req)
   const origin = `${req.protocol}://${req.get('host')}`
 
@@ -172,7 +208,23 @@ app.get('/void/:id', async (req, res) => {
     return res.send(humanPage(id, origin))
   }
 
-  const content = generateMainVoidPage(id)
+  // Infinite mode — stream forever until AI disconnects
+  if (mode === 'infinite') {
+    return serveInfinite(id, botName, res)
+  }
+
+  // Limited or default mode — serve content up to token limit
+  let content = generateMainVoidPage(id)
+
+  // If token limit set, repeat content until limit reached
+  if (tokenLimit && tokenLimit > 0) {
+    const targetChars = tokenLimit * 4
+    while (content.length < targetChars) {
+      content += generateVoidPage(id, ((content.length % 8) + 1))
+    }
+    content = content.slice(0, targetChars)
+  }
+
   const tokens = await logBurn(id, botName, content.length)
   console.log(`[burn] ${botName} → ${id} — ${tokens.toLocaleString()} tokens`)
   res.setHeader('Content-Type', 'text/html; charset=utf-8')

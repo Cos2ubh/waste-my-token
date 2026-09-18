@@ -59,9 +59,15 @@ function VoidGenerator({ user }) {
   const [burn, setBurn] = useState(null)
   const [showModal, setShowModal] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const [burnMode, setBurnMode] = useState('infinite') // 'infinite' | 'limited'
+  const [tokenLimit, setTokenLimit] = useState(500000)
   const pollRef = useRef(null)
 
-  const voidUrl = voidId ? `${window.location.origin}/void/${voidId}` : null
+  const voidUrl = voidId
+    ? burnMode === 'infinite'
+      ? `${window.location.origin}/void/${voidId}?mode=infinite`
+      : `${window.location.origin}/void/${voidId}?tokens=${tokenLimit}`
+    : null
 
   const startPolling = useCallback((id) => {
     if (pollRef.current) return
@@ -121,6 +127,48 @@ function VoidGenerator({ user }) {
     return (
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 1, ease: EXPO }}
         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+
+        {/* Burn mode selector */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 4 }}>
+          {['infinite', 'limited'].map(m => (
+            <button key={m} onClick={() => setBurnMode(m)} style={{
+              padding: '8px 20px', borderRadius: 10, fontWeight: 700, fontSize: '0.85rem',
+              cursor: 'pointer', transition: 'all 0.2s',
+              background: burnMode === m ? 'rgba(124,58,237,0.25)' : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${burnMode === m ? 'rgba(124,58,237,0.6)' : 'rgba(255,255,255,0.08)'}`,
+              color: burnMode === m ? '#a78bfa' : '#475569',
+            }}>
+              {m === 'infinite' ? '∞ Infinite' : '🎯 Set Limit'}
+            </button>
+          ))}
+        </div>
+
+        {burnMode === 'limited' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <input
+              type="number"
+              min="10000"
+              max="10000000"
+              step="10000"
+              value={tokenLimit}
+              onChange={e => setTokenLimit(Math.max(10000, parseInt(e.target.value) || 500000))}
+              style={{
+                padding: '10px 16px', borderRadius: 10, width: 160,
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(124,58,237,0.3)',
+                color: '#fff', fontSize: '0.9rem', fontFamily: 'ui-monospace,monospace',
+                outline: 'none', textAlign: 'center',
+              }}
+            />
+            <span style={{ color: '#475569', fontSize: '0.8rem' }}>tokens</span>
+          </div>
+        )}
+
+        {burnMode === 'infinite' && (
+          <p style={{ color: '#334155', fontSize: '0.78rem', margin: 0 }}>
+            No limit — drains every last token until the AI gives up
+          </p>
+        )}
+
         <motion.button
           whileHover={{ scale: 1.05, filter: 'brightness(1.12)' }}
           whileTap={{ scale: 0.97 }}

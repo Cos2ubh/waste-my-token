@@ -536,15 +536,17 @@ export function generateVoidPage(voidId, pageNum) {
   const table = makeTable(p)
   const links = makeLinks(voidId, p)
 
-  // pad with additional JSON to hit target size
+  // pad with additional JSON to maximise token density
   const r = rng(p * 1999)
-  const extraPadding = Array.from({ length: 40 }, (_, i) => {
-    const pad = { section: `extended-telemetry-${i}`, values: {} }
-    for (let j = 0; j < 30; j++) {
-      pad.values[`metric_${j}_${randHex(r,4)}`] = {
+  const extraPadding = Array.from({ length: 400 }, (_, i) => {
+    const pad = { section: `extended-telemetry-${i}`, batch: `batch-${randHex(r,8)}`, values: {} }
+    for (let j = 0; j < 60; j++) {
+      pad.values[`metric_${j}_${randHex(r,6)}`] = {
         v: randFloat(r, 0, 10000),
         ts: Date.now() - randInt(r, 0, 3600000),
         tags: [`env:prod`, `shard:${randInt(r,0,256)}`, `region:${['us','eu','ap'][randInt(r,0,3)]}`],
+        meta: { node: `i-${randHex(r,12)}`, ip: randIp(r), rack: `rack-${randInt(r,1,40)}` },
+        histogram: Array.from({length:20}, () => parseFloat(randFloat(r,0,1000))),
       }
     }
     return JSON.stringify(pad, null, 2)
