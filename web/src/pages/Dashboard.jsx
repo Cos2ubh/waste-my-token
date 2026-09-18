@@ -86,25 +86,34 @@ export default function Dashboard({ user, onLogout }) {
       const { data: p } = await supabase.from('users').select('*').eq('id', user.id).single()
       setProfile(p)
 
-      // get void session for this user
+      // check localStorage first (most recent session this browser used)
+      const localId = localStorage.getItem(VOID_KEY)
+
+      // also get any void sessions claimed to this user account
       const { data: sessions } = await supabase
         .from('void_sessions').select('id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1)
 
-      // also check localStorage for an unclaimed session
-      const localId = localStorage.getItem(VOID_KEY)
-      const resolvedId = sessions?.[0]?.id ?? localId ?? null
+      // prefer local ID (most recent burn) then claimed session
+      const resolvedId = localId ?? sessions?.[0]?.id ?? null
       setVoidId(resolvedId)
 
       if (resolvedId) {
-        // get burns
+        // Get ALL void session IDs for this user (claimed + local)
+        const allIds = [...new Set([
+          resolvedId,
+          ...(sessions ?? []).map(s => s.id)
+        ])]
+
+        // Fetch burns across all sessions
         const { data: b } = await supabase
-          .from('burns').select('*').eq('void_id', resolvedId).order('recorded_at', { ascending: false }).limit(50)
+          .from('burns').select('*')
+          .in('void_id', allIds)
+          .order('recorded_at', { ascending: false }).limit(200)
         setBurns(b ?? [])
 
         const allTime = (b ?? []).reduce((s, r) => s + Number(r.tokens_burned), 0)
         const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
         const weekly = (b ?? []).filter(r => r.recorded_at > weekAgo).reduce((s, r) => s + Number(r.tokens_burned), 0)
-        setBurns(b ?? [])
         setStats({ allTime, weekly, burnCount: (b ?? []).length })
 
         // badges
