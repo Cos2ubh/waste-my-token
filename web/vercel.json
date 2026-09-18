@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/void/:path*",
+      "destination": "https://waste-my-token-production.up.railway.app/void/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://waste-my-token-production.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/trap/:path*",
+      "destination": "https://waste-my-token-production.up.railway.app/trap/:path*"
+    }
+  ]
+}
