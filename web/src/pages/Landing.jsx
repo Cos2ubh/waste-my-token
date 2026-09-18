@@ -150,6 +150,31 @@ function VoidGenerator({ user }) {
         />
       )}
 
+      {showModal && burn && user && (
+        <motion.div
+          initial={{ y: 80, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 80, opacity: 0 }}
+          style={{
+            position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 200, background: 'linear-gradient(135deg, #0f0a00, #080810)',
+            border: '1px solid rgba(255,107,0,0.4)', borderRadius: 16,
+            padding: '16px 28px', display: 'flex', alignItems: 'center', gap: 14,
+            boxShadow: '0 8px 40px rgba(255,107,0,0.2)',
+            cursor: 'pointer', minWidth: 280,
+          }}
+          onClick={() => setShowModal(false)}
+        >
+          <span style={{ fontSize: 28 }}>🔥</span>
+          <div>
+            <div style={{ fontWeight: 800, color: '#fff', fontSize: '0.95rem' }}>
+              {burn.total_tokens?.toLocaleString()} tokens burned
+            </div>
+            <div style={{ color: '#64748b', fontSize: '0.78rem' }}>Added to your score · tap to dismiss</div>
+          </div>
+        </motion.div>
+      )}
+
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EXPO }}
         style={{ width: '100%', maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
