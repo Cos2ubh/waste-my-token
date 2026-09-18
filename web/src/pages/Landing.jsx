@@ -60,7 +60,8 @@ function VoidGenerator({ user }) {
   const [showModal, setShowModal] = useState(false)
   const pollRef = useRef(null)
 
-  const voidUrl = voidId ? `${window.location.origin}/void/${voidId}` : null
+  const API = import.meta.env.VITE_API_URL || window.location.origin
+  const voidUrl = voidId ? `${API}/void/${voidId}` : null
 
   // start polling once we have a void ID
   const startPolling = useCallback((id) => {
