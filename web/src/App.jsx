@@ -15,20 +15,33 @@ function ProtectedRoute({ user, children }) {
 async function ensureUserRecord(authUser) {
   const { data: existing } = await supabase
     .from('users').select('id').eq('id', authUser.id).maybeSingle()
-  if (existing) return
+  if (!existing) {
+    const base = (authUser.email ?? 'user')
+      .split('@')[0]
+      .replace(/[^a-z0-9]/gi, '')
+      .toLowerCase()
+      .slice(0, 16)
 
-  const base = (authUser.email ?? 'user')
-    .split('@')[0]
-    .replace(/[^a-z0-9]/gi, '')
-    .toLowerCase()
-    .slice(0, 16)
+    for (let i = 0; i < 10; i++) {
+      const suffix = Math.floor(1000 + Math.random() * 9000)
+      const { error } = await supabase
+        .from('users').insert({ id: authUser.id, username: `${base}${suffix}` })
+      if (!error) break
+      if (!error.message?.includes('unique') && !error.code?.includes('23505')) throw error
+    }
+  }
 
-  for (let i = 0; i < 10; i++) {
-    const suffix = Math.floor(1000 + Math.random() * 9000)
-    const { error } = await supabase
-      .from('users').insert({ id: authUser.id, username: `${base}${suffix}` })
-    if (!error) return
-    if (!error.message?.includes('unique') && !error.code?.includes('23505')) throw error
+  // Claim any pending void session from localStorage
+  const pendingVoidId = localStorage.getItem('wmt_void_id') || localStorage.getItem('pending_void_claim')
+  if (pendingVoidId) {
+    try {
+      await fetch(`/api/claim/${pendingVoidId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: authUser.id }),
+      })
+      localStorage.removeItem('pending_void_claim')
+    } catch {}
   }
 }
 
