@@ -29,20 +29,21 @@ const BOT_PATTERNS = [
 
 function detectBot(req) {
   const ua = req.headers['user-agent'] ?? ''
-  // Browsers always send Accept-Language; bots rarely do
-  const hasAcceptLang = !!req.headers['accept-language']
-  const hasSecFetch = !!req.headers['sec-fetch-site']
 
-  // If it looks like a real browser, treat as human
-  if (hasAcceptLang && hasSecFetch) return null
-
+  // Always match known AI patterns first regardless of other headers
   for (const p of BOT_PATTERNS) {
     const m = ua.match(p)
     if (m) return m[0]
   }
 
-  // No Accept-Language and not a known bot — still suspicious, treat as bot
-  if (!hasAcceptLang && ua && !ua.includes('Mozilla')) return ua.split('/')[0]
+  const hasSecFetch = !!req.headers['sec-fetch-site']
+  const hasAcceptLang = !!req.headers['accept-language']
+
+  // Real browser: has both Sec-Fetch and Accept-Language
+  if (hasSecFetch && hasAcceptLang) return null
+
+  // No Sec-Fetch headers = not a real browser (API client, AI web tool, etc.)
+  if (!hasSecFetch) return ua.split('/')[0] || 'unknown-bot'
 
   return null
 }
@@ -62,7 +63,9 @@ async function logBurn(voidId, agentName, contentLength) {
 
 // ── human page (served when a browser visits /void/:id) ──────────────────────
 function humanPage(voidId, origin) {
-  const voidUrl = `${origin}/void/${voidId}`
+  // Always use the Vercel frontend URL so Railway is never exposed
+  const frontendOrigin = process.env.FRONTEND_URL || origin
+  const voidUrl = `${frontendOrigin}/void/${voidId}`
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
