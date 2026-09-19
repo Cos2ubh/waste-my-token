@@ -86,29 +86,27 @@ export default function Dashboard({ user, onLogout }) {
       const { data: p } = await supabase.from('users').select('*').eq('id', user.id).single()
       setProfile(p)
 
-      // check localStorage first (most recent session this browser used)
-      const localId = localStorage.getItem(VOID_KEY)
-
-      // also get any void sessions claimed to this user account
+      // Get ALL void sessions for this user (no limit)
       const { data: sessions } = await supabase
-        .from('void_sessions').select('id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1)
+        .from('void_sessions').select('id').eq('user_id', user.id).order('created_at', { ascending: false })
 
-      // prefer local ID (most recent burn) then claimed session
-      const resolvedId = localId ?? sessions?.[0]?.id ?? null
+      // Also include any local session from this browser
+      const localId = localStorage.getItem(VOID_KEY)
+      const allIds = [...new Set([
+        ...(sessions ?? []).map(s => s.id),
+        ...(localId ? [localId] : [])
+      ])]
+
+      // Use most recent session as the displayed void link
+      const resolvedId = sessions?.[0]?.id ?? localId ?? null
       setVoidId(resolvedId)
 
-      if (resolvedId) {
-        // Get ALL void session IDs for this user (claimed + local)
-        const allIds = [...new Set([
-          resolvedId,
-          ...(sessions ?? []).map(s => s.id)
-        ])]
-
-        // Fetch burns across all sessions
+      if (allIds.length > 0) {
+        // Fetch burns across ALL sessions
         const { data: b } = await supabase
           .from('burns').select('*')
           .in('void_id', allIds)
-          .order('recorded_at', { ascending: false }).limit(200)
+          .order('recorded_at', { ascending: false }).limit(500)
         setBurns(b ?? [])
 
         const allTime = (b ?? []).reduce((s, r) => s + Number(r.tokens_burned), 0)
