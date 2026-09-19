@@ -13,7 +13,7 @@ const NAV = {
   borderBottom: '1px solid rgba(255,255,255,0.05)',
 }
 
-export default function LeaderboardPage({ onAuthClick }) {
+export default function LeaderboardPage({ onAuthClick, user, onLogout }) {
   const [tab, setTab] = useState('alltime')
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -49,14 +49,19 @@ export default function LeaderboardPage({ onAuthClick }) {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={() => onAuthClick?.('login')}
-            style={{ fontSize: '0.875rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px' }}
-            onMouseEnter={e => e.target.style.color = '#fff'}
-            onMouseLeave={e => e.target.style.color = '#64748b'}
-          >Log in</button>
-          <button onClick={() => onAuthClick?.('signup')}
-            style={{ fontSize: '0.875rem', fontWeight: 700, color: '#fff', cursor: 'pointer', padding: '9px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
-          >Get started</button>
+          {user ? (
+            <>
+              <a href="/dashboard" style={{ fontSize: '0.875rem', color: '#64748b', textDecoration: 'none', padding: '6px 14px' }}>Dashboard</a>
+              <button onClick={onLogout} style={{ fontSize: '0.875rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px' }}>Log out</button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => onAuthClick?.('login')}
+                style={{ fontSize: '0.875rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '6px 14px' }}>Log in</button>
+              <button onClick={() => onAuthClick?.('signup')}
+                style={{ fontSize: '0.875rem', fontWeight: 700, color: '#fff', cursor: 'pointer', padding: '9px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>Get started</button>
+            </>
+          )}
         </div>
       </nav>
 
