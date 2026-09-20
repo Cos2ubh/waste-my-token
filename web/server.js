@@ -307,9 +307,9 @@ function recordOutcome(profile, tokens) {
 
 // Layer 3: Strategy Runner Helpers
 
-// Each void page is ~16MB. AI web readers (ChatGPT, Gemini) refuse responses >4MB.
-// Cap all responses at 3.2MB so they always load. 3.2MB = 800K tokens — still massive.
-const MAX_RESPONSE_CHARS = 3_200_000
+// Each void page is ~16MB. AI web readers cap fetches well below their stated limit.
+// 2MB tested safe across ChatGPT and Gemini. 2MB = 500K tokens — still a massive burn.
+const MAX_RESPONSE_CHARS = 2_000_000
 
 const SECTION_TITLES = [
   'Distributed Consensus Protocol Benchmarks',
