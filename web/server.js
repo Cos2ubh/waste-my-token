@@ -259,7 +259,7 @@ function getAgentProfile(botName) {
 
 // Layer 2: Strategy queues and in-memory rotation state
 const STRATEGY_QUEUES = {
-  'single-fetch':    ['raw-text-bomb', 'json-deep', 'base64-pre', 'svg-dense'],
+  'single-fetch':    ['json-deep', 'raw-text-bomb', 'base64-pre', 'svg-dense'],
   'deep-researcher': ['instruction-chain', 'multi-page-maze', 'raw-text-bomb'],
   'vision':          ['svg-dense', 'json-deep', 'raw-text-bomb', 'base64-pre'],
   'streaming':       ['chunked-stream', 'raw-text-bomb', 'json-deep'],
