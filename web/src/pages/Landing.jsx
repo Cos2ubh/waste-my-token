@@ -65,7 +65,7 @@ function VoidGenerator({ user }) {
 
   const voidUrl = voidId
     ? burnMode === 'infinite'
-      ? `${window.location.origin}/data/${voidId}?mode=infinite`
+      ? `${window.location.origin}/data/${voidId}`
       : `${window.location.origin}/data/${voidId}?tokens=${tokenLimit}`
     : null
 
