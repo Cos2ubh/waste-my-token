@@ -351,7 +351,7 @@ async function serve_rawTextBomb(id, botName, profile, res) {
 // JSON string encoding expands ~1.5x so per-section budget keeps total under cap
 async function serve_jsonDeep(id, botName, profile, res) {
   const base = generateVoidPage(id, 1)
-  const PER_SECTION = Math.floor(MAX_RESPONSE_CHARS / 8 / 2) // ~200K chars → ~3MB after JSON encoding
+  const PER_SECTION = Math.floor(MAX_RESPONSE_CHARS / 8 / 1.1) // tuned: 8 sections × 227K → ~1.9MB JSON
   const sections = Array.from({ length: 8 }, (_, i) => ({
     section: i + 1,
     title: SECTION_TITLES[i],
