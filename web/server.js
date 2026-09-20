@@ -520,19 +520,12 @@ const STRATEGY_RUNNERS = {
 // ── GET /data/:id (disguised as research archive) + legacy /void/:id ──────────
 async function handleDataRequest(req, res) {
   const { id } = req.params
-  const mode = req.query.mode
   const tokenLimit = parseInt(req.query.tokens) || null
   const botName = detectBot(req)
   const origin = `${req.protocol}://${req.get('host')}`
 
   if (!botName) {
     res.send(humanPage(id, origin))
-    return
-  }
-
-  // Infinite mode — stream forever until AI disconnects
-  if (mode === 'infinite') {
-    serveInfinite(id, botName, res)
     return
   }
 
