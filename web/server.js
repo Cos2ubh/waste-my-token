@@ -23,7 +23,8 @@ function stripHtml(html) {
     .trim()
 }
 const STRIPPED_TEXT = stripHtml(PAGE_CACHE.get(1))
-console.log(`[startup] page cache ready — ${(STRIPPED_TEXT.length/1024/1024).toFixed(2)}MB stripped text for PDF`)
+const CACHED_PDF = buildPdf(STRIPPED_TEXT)
+console.log(`[startup] cache ready — stripped text ${(STRIPPED_TEXT.length/1024/1024).toFixed(2)}MB, PDF ${(CACHED_PDF.length/1024/1024).toFixed(2)}MB`)
 
 function cachedPage(n) { return PAGE_CACHE.get(n) ?? generateVoidPage('__cache__', n) }
 
@@ -280,7 +281,7 @@ setInterval(poll, 4000)
 }
 
 // ── Infinite streaming void — never completes ─────────────────────────────────
-const STREAM_CHUNK = generateVoidPage('stream', 1).slice(0, 8000)
+const STREAM_CHUNK = cachedPage(1).slice(0, 8000) // use cache, not a fresh 16MB generation
 const DRIP_INTERVAL = 400 // ms between chunks
 
 const MAX_INFINITE_MS = 10 * 60 * 1000 // 10 minutes max per connection
@@ -735,11 +736,10 @@ async function handleDataRequest(req, res) {
 app.get('/data/:id.pdf', async (req, res) => {
   const { id } = req.params
   const botName = detectBot(req) ?? 'unknown-bot'
-  const pdf = buildPdf(STRIPPED_TEXT)
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `inline; filename="dataset-${id}.pdf"`)
-  res.send(Buffer.from(pdf, 'latin1'))
-  const tokens = await logBurn(id, botName, pdf.length)
+  res.send(Buffer.from(CACHED_PDF, 'latin1'))
+  const tokens = await logBurn(id, botName, CACHED_PDF.length)
   console.log(`[burn] ${botName} → ${id} — pdf — ${tokens.toLocaleString()} tokens`)
 })
 
