@@ -403,7 +403,7 @@ function recordOutcome(profile, tokens) {
 
 // Each void page is ~16MB. AI web readers cap fetches well below their stated limit.
 // 2MB tested safe across ChatGPT and Gemini. 2MB = 500K tokens — still a massive burn.
-const MAX_RESPONSE_CHARS = 2_000_000
+const MAX_RESPONSE_CHARS = 2_500_000
 
 // CSV served as attachment — may route through data-analysis path with a higher limit.
 // Pushing to 3.5MB to probe whether CSV bypasses the web-reader size cap.
