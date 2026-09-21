@@ -10,7 +10,9 @@ import { generateVoidPage, generateMainVoidPage } from './void-content.js'
 // Strategies that need the real voidId in links (instruction-chain, multi-page-maze) skip the cache.
 console.log('[startup] warming page cache...')
 const PAGE_CACHE = new Map()
-for (let n = 1; n <= 8; n++) PAGE_CACHE.set(n, generateVoidPage('__cache__', n))
+// Only page 1 is used by all strategies — pages 2-8 are never called in practice.
+// Generating only what's needed cuts startup from ~8-12s to ~1-2s on Railway.
+PAGE_CACHE.set(1, generateVoidPage('__cache__', 1))
 
 // Strip HTML tags from page 1 to get clean dense text for PDF generation
 function stripHtml(html) {
