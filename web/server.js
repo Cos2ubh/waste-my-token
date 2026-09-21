@@ -623,23 +623,18 @@ const STRATEGY_RUNNERS = {
 async function handleDataRequest(req, res) {
   const { id } = req.params
   const tokenLimit = parseInt(req.query.tokens) || null
-  const botName = detectBot(req)
   const origin = `${req.protocol}://${req.get('host')}`
 
-  if (!botName) {
-    res.send(humanPage(id, origin))
-    return
-  }
+  // /data/:id is always consumed by AIs — never show humanPage here.
+  // Gemini sends a Chrome-like UA with Sec-Fetch headers so detectBot() returns null,
+  // causing it to get the human landing page instead of void content. Fix: always run
+  // the strategy engine for /data/:id. Use 'unknown-bot' as fallback agent name.
+  const botName = detectBot(req) ?? 'unknown-bot'
 
   // Token-limit override: raw-text-bomb sliced to target chars
   if (tokenLimit && tokenLimit > 0) {
     const targetChars = tokenLimit * 4
-    let content = ''
-    for (let n = 1; n <= 8; n++) {
-      content += generateVoidPage(id, n)
-      if (content.length >= targetChars) break
-    }
-    content = content.slice(0, targetChars)
+    let content = cachedPage(1).slice(0, targetChars)
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
     res.send(content)
     const tokens = await logBurn(id, botName, content.length)
