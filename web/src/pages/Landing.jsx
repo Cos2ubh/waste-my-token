@@ -75,7 +75,7 @@ function VoidGenerator({ user }) {
   const dataOrigin = import.meta.env.VITE_DATA_ORIGIN || window.location.origin
   const voidUrl = voidId
     ? burnMode === 'infinite'
-      ? `${dataOrigin}/data/${voidId}.pdf`
+      ? `${dataOrigin}/data/${voidId}`
       : `${dataOrigin}/data/${voidId}?tokens=${tokenLimit}`
     : null
 
