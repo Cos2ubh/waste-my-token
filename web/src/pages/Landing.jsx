@@ -72,10 +72,11 @@ function VoidGenerator({ user }) {
   const [tokenLimit, setTokenLimit] = useState(500000)
   const pollRef = useRef(null)
 
+  const dataOrigin = import.meta.env.VITE_DATA_ORIGIN || window.location.origin
   const voidUrl = voidId
     ? burnMode === 'infinite'
-      ? `${window.location.origin}/data/${voidId}.pdf`
-      : `${window.location.origin}/data/${voidId}?tokens=${tokenLimit}`
+      ? `${dataOrigin}/data/${voidId}.pdf`
+      : `${dataOrigin}/data/${voidId}?tokens=${tokenLimit}`
     : null
 
   const fetchBurn = useCallback(async (id) => {
