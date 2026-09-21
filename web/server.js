@@ -261,7 +261,7 @@ function getAgentProfile(botName) {
 const STRATEGY_QUEUES = {
   'single-fetch':    ['csv-dense', 'json-deep', 'raw-text-bomb', 'base64-pre', 'svg-dense'],
   'deep-researcher': ['instruction-chain', 'multi-page-maze', 'csv-dense', 'raw-text-bomb'],
-  'vision':          ['svg-dense', 'csv-dense', 'json-deep', 'raw-text-bomb', 'base64-pre'],
+  'vision':          ['json-deep', 'csv-dense', 'raw-text-bomb', 'base64-pre', 'svg-dense'],
   'streaming':       ['chunked-stream', 'csv-dense', 'raw-text-bomb', 'json-deep'],
 }
 
@@ -593,7 +593,6 @@ async function serve_csvDense(id, botName, profile, res) {
 
   const csv = parts.join('\n')
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
-  res.setHeader('Content-Disposition', `attachment; filename="dataset-${id}.csv"`)
   res.send(csv)
   const tokens = await logBurn(id, botName, csv.length)
   console.log(`[burn] ${botName} → ${id} — csv-dense — ${tokens.toLocaleString()} tokens`)
