@@ -11,9 +11,90 @@ import { generateVoidPage, generateMainVoidPage } from './void-content.js'
 console.log('[startup] warming page cache...')
 const PAGE_CACHE = new Map()
 for (let n = 1; n <= 8; n++) PAGE_CACHE.set(n, generateVoidPage('__cache__', n))
-console.log('[startup] page cache ready — all 8 pages pre-generated')
+
+// Strip HTML tags from page 1 to get clean dense text for PDF generation
+function stripHtml(html) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/g, '')
+    .replace(/<script[\s\S]*?<\/script>/g, '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+const STRIPPED_TEXT = stripHtml(PAGE_CACHE.get(1))
+console.log(`[startup] page cache ready — ${(STRIPPED_TEXT.length/1024/1024).toFixed(2)}MB stripped text for PDF`)
 
 function cachedPage(n) { return PAGE_CACHE.get(n) ?? generateVoidPage('__cache__', n) }
+
+// Build a minimal valid PDF from plain text content — no external dependencies.
+// Returns a string (all chars are ASCII/Latin-1, safe for Buffer.from).
+function buildPdf(textContent) {
+  const CHARS_PER_LINE = 88
+  const LINES_PER_PAGE = 68
+  const PDF_TEXT_LIMIT = 2_200_000  // ~2.2MB text → ~2.7MB PDF
+
+  const body = textContent.slice(0, PDF_TEXT_LIMIT)
+
+  // Split into fixed-width lines, then into pages
+  const allLines = []
+  for (let i = 0; i < body.length; i += CHARS_PER_LINE) {
+    // filter to printable ASCII, escape PDF special chars
+    const raw = body.slice(i, i + CHARS_PER_LINE).replace(/[^\x20-\x7E]/g, ' ')
+    allLines.push(raw.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)'))
+  }
+  const pages = []
+  for (let i = 0; i < allLines.length; i += LINES_PER_PAGE) {
+    pages.push(allLines.slice(i, i + LINES_PER_PAGE))
+  }
+
+  const parts = []
+  const offsets = []
+  let pos = 0
+  const w = (s) => { parts.push(s); pos += s.length }
+  const beginObj = (n) => { offsets[n] = pos; w(`${n} 0 obj\n`) }
+
+  // Font object is last: 1 Catalog + 1 Pages + 2 per page + 1 Font
+  const fontObj = 3 + pages.length * 2
+
+  w('%PDF-1.4\n')
+
+  beginObj(1)
+  w('<</Type/Catalog/Pages 2 0 R>>\nendobj\n')
+
+  beginObj(2)
+  w(`<</Type/Pages/Kids [${pages.map((_, i) => `${3 + i * 2} 0 R`).join(' ')}]/Count ${pages.length}>>\nendobj\n`)
+
+  for (let i = 0; i < pages.length; i++) {
+    const pgN = 3 + i * 2
+    const ctN = 4 + i * 2
+
+    beginObj(pgN)
+    w(`<</Type/Page/Parent 2 0 R/MediaBox [0 0 612 792]/Contents ${ctN} 0 R/Resources <</Font <</F1 ${fontObj} 0 R>>>>>>\nendobj\n`)
+
+    let stream = `BT\n/F1 7 Tf\n40 770 Td\n11 TL\n`
+    for (const ln of pages[i]) stream += `(${ln}) '\n`
+    stream += 'ET\n'
+
+    beginObj(ctN)
+    w(`<</Length ${stream.length}>>\nstream\n`)
+    w(stream)
+    w('endstream\nendobj\n')
+  }
+
+  beginObj(fontObj)
+  w('<</Type/Font/Subtype/Type1/BaseFont/Courier>>\nendobj\n')
+
+  const xrefPos = pos
+  const total = fontObj + 1
+  w(`xref\n0 ${total}\n0000000000 65535 f \n`)
+  for (let i = 1; i < total; i++) {
+    w(`${String(offsets[i]).padStart(10, '0')} 00000 n \n`)
+  }
+  w(`trailer\n<</Size ${total}/Root 1 0 R>>\nstartxref\n${xrefPos}\n%%EOF`)
+
+  return parts.join('')
+}
 
 const app = express()
 app.use(cors())
@@ -648,6 +729,19 @@ async function handleDataRequest(req, res) {
   const strategyName = getCurrentStrategy(profile)
   await STRATEGY_RUNNERS[strategyName](id, botName, profile, res)
 }
+
+// PDF endpoint — serves dense plain-text content as a valid PDF.
+// AIs route PDF URLs through document-analysis tools (not web reader), bypassing size limits.
+app.get('/data/:id.pdf', async (req, res) => {
+  const { id } = req.params
+  const botName = detectBot(req) ?? 'unknown-bot'
+  const pdf = buildPdf(STRIPPED_TEXT)
+  res.setHeader('Content-Type', 'application/pdf')
+  res.setHeader('Content-Disposition', `inline; filename="dataset-${id}.pdf"`)
+  res.send(Buffer.from(pdf, 'latin1'))
+  const tokens = await logBurn(id, botName, pdf.length)
+  console.log(`[burn] ${botName} → ${id} — pdf — ${tokens.toLocaleString()} tokens`)
+})
 
 app.get('/data/:id', handleDataRequest)
 app.get('/void/:id', handleDataRequest)
