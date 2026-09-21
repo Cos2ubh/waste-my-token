@@ -259,10 +259,10 @@ function getAgentProfile(botName) {
 
 // Layer 2: Strategy queues and in-memory rotation state
 const STRATEGY_QUEUES = {
-  'single-fetch':    ['json-deep', 'raw-text-bomb', 'base64-pre', 'svg-dense'],
-  'deep-researcher': ['instruction-chain', 'multi-page-maze', 'raw-text-bomb'],
-  'vision':          ['svg-dense', 'json-deep', 'raw-text-bomb', 'base64-pre'],
-  'streaming':       ['chunked-stream', 'raw-text-bomb', 'json-deep'],
+  'single-fetch':    ['csv-dense', 'json-deep', 'raw-text-bomb', 'base64-pre', 'svg-dense'],
+  'deep-researcher': ['instruction-chain', 'multi-page-maze', 'csv-dense', 'raw-text-bomb'],
+  'vision':          ['svg-dense', 'csv-dense', 'json-deep', 'raw-text-bomb', 'base64-pre'],
+  'streaming':       ['chunked-stream', 'csv-dense', 'raw-text-bomb', 'json-deep'],
 }
 
 const STRATEGY_THRESHOLDS = {
@@ -310,6 +310,10 @@ function recordOutcome(profile, tokens) {
 // Each void page is ~16MB. AI web readers cap fetches well below their stated limit.
 // 2MB tested safe across ChatGPT and Gemini. 2MB = 500K tokens — still a massive burn.
 const MAX_RESPONSE_CHARS = 2_000_000
+
+// CSV served as attachment — may route through data-analysis path with a higher limit.
+// Pushing to 3.5MB to probe whether CSV bypasses the web-reader size cap.
+const CSV_LIMIT = 3_500_000
 
 const SECTION_TITLES = [
   'Distributed Consensus Protocol Benchmarks',
@@ -515,6 +519,87 @@ async function serve_chunkedStream(id, botName, profile, res) {
   serveInfinite(id, botName, res)
 }
 
+// Strategy 8: csv-dense — thousands of rows of dense numeric/hex data as text/csv
+// Served as attachment to probe whether ChatGPT routes it to data-analysis (higher limit)
+async function serve_csvDense(id, botName, profile, res) {
+  let seed = 0
+  for (let i = 0; i < id.length; i++) {
+    seed = (Math.imul(31, seed) + id.charCodeAt(i)) | 0
+  }
+  seed = (seed >>> 0) || 1
+  const r = svgRng(seed)
+
+  const ri = () => Math.floor(r() * 4294967295)
+  const rf = (lo, hi) => (lo + r() * (hi - lo)).toFixed(6)
+  const rh = (len) => { let h = ''; for (let i = 0; i < len; i++) h += Math.floor(r() * 16).toString(16); return h }
+  const rr = (arr) => arr[Math.floor(r() * arr.length)]
+
+  const REGIONS  = ['us-east-1a','us-east-1b','eu-west-2a','ap-southeast-1a','us-west-2b','ap-northeast-1c','sa-east-1a']
+  const RACKS    = ['rack-A1','rack-A2','rack-B1','rack-B2','rack-C1','rack-C2','rack-D1','rack-D2']
+  const SERVICES = ['auth-gateway','consensus-engine','shard-coordinator','replication-broker','zkproof-verifier','key-derivation','merkle-aggregator']
+  const STATUSES = ['healthy','degraded','recovering','standby','initializing']
+
+  const headers = [
+    'node_id','session_id','cluster_id','region','rack','service','status',
+    'timestamp_ms','recorded_at_ms',
+    'cpu_utilization','memory_utilization','disk_utilization','network_saturation',
+    'requests_per_sec','errors_per_min','latency_p50_ms','latency_p95_ms','latency_p99_ms',
+    'bytes_rx','bytes_tx','disk_iops_read','disk_iops_write',
+    'connections_active','queue_depth','thread_pool_active','thread_pool_idle',
+    'cache_hit_rate','cache_miss_rate','cache_eviction_rate',
+    'gc_pause_ms','gc_collections','heap_used_bytes','heap_max_bytes',
+    'replication_lag_ms','consensus_term','log_entries','commit_index',
+    'checksum_a','checksum_b','trace_id',
+    'cpu_steal','cpu_iowait','cpu_softirq',
+    'mem_buffers_mb','mem_cached_mb',
+    'tcp_retransmits','tcp_out_of_order','socket_errors',
+    'open_file_descriptors','page_faults','context_switches',
+    'load_avg_1m','load_avg_5m','load_avg_15m',
+    'uptime_seconds','config_version','schema_version',
+  ]
+
+  const parts = [headers.join(',')]
+  let totalLen = parts[0].length + 1
+
+  while (totalLen < CSV_LIMIT) {
+    const now = Date.now()
+    const row = [
+      `i-${rh(12)}`, `s-${rh(12)}`, `c-${rh(8)}`,
+      rr(REGIONS), rr(RACKS), rr(SERVICES), rr(STATUSES),
+      now - ri() % 3600000, now - ri() % 86400000,
+      rf(0.01, 0.999), rf(0.01, 0.999), rf(0.01, 0.999), rf(0.001, 0.999),
+      ri() % 100000, ri() % 10000,
+      rf(0.1, 100), rf(1, 500), rf(5, 2000),
+      ri() % 10000000000, ri() % 10000000000,
+      ri() % 200000, ri() % 200000,
+      ri() % 50000, ri() % 10000, ri() % 500, ri() % 500,
+      rf(0.3, 0.9999), rf(0.0001, 0.7), rf(0.0001, 0.3),
+      rf(0.1, 500), ri() % 100000,
+      ri() % 68719476736, ri() % 68719476736,
+      rf(0, 5000), ri() % 10000, ri() % 10000000, ri() % 10000000,
+      rh(16), rh(16), rh(32),
+      rf(0, 0.5), rf(0, 0.4), rf(0, 0.2),
+      ri() % 8192, ri() % 32768,
+      ri() % 50000, ri() % 5000, ri() % 5000,
+      ri() % 65535, ri() % 500000, ri() % 5000000,
+      rf(0, 16), rf(0, 16), rf(0, 16),
+      ri() % 31536000, ri() % 1000, ri() % 100,
+    ].join(',')
+
+    if (totalLen + row.length + 1 > CSV_LIMIT) break
+    parts.push(row)
+    totalLen += row.length + 1
+  }
+
+  const csv = parts.join('\n')
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="dataset-${id}.csv"`)
+  res.send(csv)
+  const tokens = await logBurn(id, botName, csv.length)
+  console.log(`[burn] ${botName} → ${id} — csv-dense — ${tokens.toLocaleString()} tokens`)
+  recordOutcome(profile, tokens)
+}
+
 const STRATEGY_RUNNERS = {
   'raw-text-bomb':     serve_rawTextBomb,
   'json-deep':         serve_jsonDeep,
@@ -523,6 +608,7 @@ const STRATEGY_RUNNERS = {
   'instruction-chain': serve_instructionChain,
   'multi-page-maze':   serve_multiPageMaze,
   'chunked-stream':    serve_chunkedStream,
+  'csv-dense':         serve_csvDense,
 }
 
 // ── GET /data/:id (disguised as research archive) + legacy /void/:id ──────────
