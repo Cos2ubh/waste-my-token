@@ -8,6 +8,14 @@ import { supabase } from '../lib/supabase'
 
 const EXPO = [0.22, 1, 0.36, 1]
 const VOID_KEY = 'wmt_void_id'
+const burnCacheKey = (id) => `wmt_burn_${id}`
+
+function readBurnCache(id) {
+  try { return id ? JSON.parse(localStorage.getItem(burnCacheKey(id))) : null } catch { return null }
+}
+function writeBurnCache(id, data) {
+  try { localStorage.setItem(burnCacheKey(id), JSON.stringify(data)) } catch {}
+}
 
 function randId() {
   return Array.from(crypto.getRandomValues(new Uint8Array(4)))
@@ -56,7 +64,8 @@ function VoidGenerator({ user }) {
   const [voidId, setVoidId] = useState(() => localStorage.getItem(VOID_KEY) ?? null)
   const [generating, setGenerating] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [burn, setBurn] = useState(null)
+  // Initialise from cache immediately — no Supabase round-trip on first render
+  const [burn, setBurn] = useState(() => readBurnCache(localStorage.getItem(VOID_KEY)))
   const [showModal, setShowModal] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const [burnMode, setBurnMode] = useState('infinite') // 'infinite' | 'limited'
@@ -69,25 +78,36 @@ function VoidGenerator({ user }) {
       : `${window.location.origin}/data/${voidId}?tokens=${tokenLimit}`
     : null
 
-  const startPolling = useCallback((id) => {
-    if (pollRef.current) return
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/burn-status/${id}`)
-        const data = await res.json()
-        if (data.burned && data.total_tokens > 0) {
-          setBurn(data)
-          // Only show modal if not dismissed and user is not logged in
-          setShowModal(prev => prev || !dismissed)
-        }
-      } catch {}
-    }, 4000)
+  const fetchBurn = useCallback(async (id) => {
+    try {
+      const res = await fetch(`/api/burn-status/${id}`)
+      const data = await res.json()
+      if (data.burned && data.total_tokens > 0) {
+        writeBurnCache(id, data)
+        setBurn(data)
+        setShowModal(prev => prev || !dismissed)
+      }
+    } catch {} // silently keep cached value on any Supabase error
   }, [dismissed])
 
+  const startPolling = useCallback((id) => {
+    if (pollRef.current) return
+    fetchBurn(id) // immediate fetch on mount, then every 20s
+    pollRef.current = setInterval(() => fetchBurn(id), 20000)
+  }, [fetchBurn])
+
   useEffect(() => {
-    if (voidId) startPolling(voidId)
-    return () => { clearInterval(pollRef.current); pollRef.current = null }
-  }, [voidId, startPolling])
+    if (!voidId) return
+    startPolling(voidId)
+    // re-fetch when user returns to tab — natural moment after sharing link with AI
+    const onFocus = () => fetchBurn(voidId)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [voidId, startPolling, fetchBurn])
 
   async function generate() {
     setGenerating(true)
@@ -116,6 +136,7 @@ function VoidGenerator({ user }) {
   }
 
   function reset() {
+    if (voidId) localStorage.removeItem(burnCacheKey(voidId))
     localStorage.removeItem(VOID_KEY)
     setVoidId(null)
     setBurn(null)
