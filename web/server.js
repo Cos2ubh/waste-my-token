@@ -353,10 +353,10 @@ function getAgentProfile(botName) {
 
 // Layer 2: Strategy queues and in-memory rotation state
 const STRATEGY_QUEUES = {
-  'single-fetch':    ['csv-dense', 'json-deep', 'raw-text-bomb', 'base64-pre', 'svg-dense'],
+  'single-fetch':    ['raw-text-bomb', 'json-deep', 'base64-pre', 'svg-dense'],
   'deep-researcher': ['instruction-chain', 'multi-page-maze', 'csv-dense', 'raw-text-bomb'],
-  'vision':          ['json-deep', 'csv-dense', 'raw-text-bomb', 'base64-pre', 'svg-dense'],
-  'streaming':       ['chunked-stream', 'csv-dense', 'raw-text-bomb', 'json-deep'],
+  'vision':          ['json-deep', 'raw-text-bomb', 'base64-pre', 'svg-dense'],
+  'streaming':       ['chunked-stream', 'raw-text-bomb', 'json-deep'],
 }
 
 const STRATEGY_THRESHOLDS = {
@@ -448,7 +448,7 @@ async function serve_rawTextBomb(id, botName, profile, res) {
 // JSON string encoding expands ~1.5x so per-section budget keeps total under cap
 async function serve_jsonDeep(id, botName, profile, res) {
   const base = cachedPage(1)
-  const PER_SECTION = 358_892 // binary-searched: 8 sections × 358K → exactly 3.0MB JSON → 786K tokens
+  const PER_SECTION = 200_000 // 8 sections × 200K → ~1.67MB JSON, safely under ChatGPT web reader limit
   const sections = Array.from({ length: 8 }, (_, i) => ({
     section: i + 1,
     title: SECTION_TITLES[i],
