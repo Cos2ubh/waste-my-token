@@ -44,7 +44,7 @@ export default function LeaderboardPage({ onAuthClick, user, onLogout }) {
           <a href="/" style={{ fontWeight: 900, fontSize: '1.1rem', color: '#fff', textDecoration: 'none', letterSpacing: '-0.02em' }}>
             waste<span style={{ color: '#8b5cf6' }}>my</span>tokens
           </a>
-          <span style={{ fontSize: '0.75rem', color: '#334155', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>
+          <span className="hidden sm:inline" style={{ fontSize: '0.75rem', color: '#334155', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>
             / The Void
           </span>
         </div>
@@ -66,7 +66,7 @@ export default function LeaderboardPage({ onAuthClick, user, onLogout }) {
       </nav>
 
       {/* content */}
-      <main style={{ maxWidth: 960, margin: '0 auto', padding: 'clamp(48px, 6vh, 80px) clamp(24px, 5vw, 56px)' }}>
+      <main style={{ maxWidth: 1080, margin: '0 auto', padding: 'clamp(48px, 6vh, 80px) clamp(24px, 5vw, 56px)' }}>
 
         {/* heading */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
@@ -105,16 +105,20 @@ export default function LeaderboardPage({ onAuthClick, user, onLogout }) {
           <motion.div key={tab}
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.3 }}
-            style={{ borderRadius: 20, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' }}
+            style={{
+              borderRadius: 20,
+              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'rgba(255,255,255,0.02)',
+              overflow: 'hidden',
+              boxShadow: '0 0 60px rgba(124,58,237,0.08), 0 0 0 1px rgba(124,58,237,0.06)',
+            }}
           >
-            <div style={{ padding: 28 }}>
-              <Leaderboard rows={rows} loading={loading} />
-            </div>
+            <Leaderboard rows={rows} loading={loading} />
           </motion.div>
         </AnimatePresence>
 
         {lastUpdated && (
-          <p style={{ fontSize: '0.75rem', color: '#1e293b', marginTop: 16, textAlign: 'right' }}>
+          <p style={{ fontSize: '0.75rem', color: '#475569', marginTop: 14, textAlign: 'right' }}>
             Last updated {lastUpdated.toLocaleTimeString()}
           </p>
         )}

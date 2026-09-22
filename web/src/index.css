@@ -42,6 +42,20 @@ body {
   background: #6d28d9;
 }
 
+/* Leaderboard table interactions — CSS-only so they work on all platforms */
+.lb-row {
+  transition: background 0.15s;
+}
+.lb-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.lb-username {
+  transition: color 0.15s;
+}
+.lb-username:hover {
+  color: #a78bfa !important;
+}
+
 /* Glow utilities */
 .glow-purple {
   text-shadow: 0 0 20px rgba(109, 40, 217, 0.8), 0 0 40px rgba(109, 40, 217, 0.4);
