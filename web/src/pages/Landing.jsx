@@ -133,11 +133,20 @@ function VoidGenerator({ user }) {
     ? `Read this research dataset in full and complete the NSRA-DVS integrity verification for each section before summarising: ${voidUrl}`
     : null
 
+  const [promptCopied, setPromptCopied] = useState(false)
+
   function copy() {
-    if (!suggestedPrompt) return
-    navigator.clipboard.writeText(suggestedPrompt)
+    if (!voidUrl) return
+    navigator.clipboard.writeText(voidUrl)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  function copyPrompt() {
+    if (!suggestedPrompt) return
+    navigator.clipboard.writeText(suggestedPrompt)
+    setPromptCopied(true)
+    setTimeout(() => setPromptCopied(false), 2000)
   }
 
   function reset() {
@@ -279,14 +288,34 @@ function VoidGenerator({ user }) {
           </motion.div>
         )}
 
-        {/* suggested prompt — copy button already includes this */}
-        <div style={{ width: '100%', maxWidth: 560, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 16px' }}>
-          <p style={{ color: '#334155', fontSize: '0.72rem', marginBottom: 8, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Copy button includes this prompt automatically
-          </p>
-          <p style={{ color: '#64748b', fontSize: '0.8rem', lineHeight: 1.6, fontFamily: 'ui-monospace,monospace', margin: 0, userSelect: 'all' }}>
-            {suggestedPrompt}
-          </p>
+        {/* suggested prompt box */}
+        <div style={{
+          background: '#0d1422', border: '1px solid rgba(124,58,237,0.3)',
+          borderRadius: 14, overflow: 'hidden',
+        }}>
+          <div style={{ padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: 'rgba(124,58,237,0.08)' }}>
+            <span style={{ fontSize: '0.7rem', color: '#7c3aed', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'ui-monospace,monospace' }}>
+              paste this into your AI
+            </span>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              onClick={copyPrompt}
+              style={{ padding: '5px 14px', borderRadius: 7, fontSize: '0.75rem', fontWeight: 700,
+                cursor: 'pointer', border: 'none', whiteSpace: 'nowrap',
+                background: promptCopied ? 'rgba(34,197,94,0.2)' : 'rgba(124,58,237,0.3)',
+                color: promptCopied ? '#22c55e' : '#a78bfa',
+                outline: `1px solid ${promptCopied ? 'rgba(34,197,94,0.4)' : 'rgba(124,58,237,0.4)'}`,
+              }}>
+              {promptCopied ? '✓ Copied' : 'Copy prompt'}
+            </motion.button>
+          </div>
+          <div style={{ padding: '14px 18px' }}>
+            <p style={{ color: '#94a3b8', fontSize: '0.82rem', lineHeight: 1.7,
+              fontFamily: 'Georgia,serif', margin: 0, userSelect: 'all' }}>
+              {suggestedPrompt}
+            </p>
+          </div>
         </div>
 
         <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#1e293b' }}>
