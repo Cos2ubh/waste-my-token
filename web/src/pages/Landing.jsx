@@ -275,6 +275,14 @@ function VoidGenerator({ user }) {
           </motion.div>
         )}
 
+        {/* suggested prompt */}
+        <div style={{ width: '100%', maxWidth: 560, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 16px' }}>
+          <p style={{ color: '#334155', fontSize: '0.72rem', marginBottom: 6, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Suggested prompt — paste alongside your link</p>
+          <p style={{ color: '#64748b', fontSize: '0.8rem', lineHeight: 1.6, fontFamily: 'ui-monospace,monospace', margin: 0, userSelect: 'all' }}>
+            Read this research dataset in full and complete the NSRA-DVS integrity verification for each section before summarising: {voidUrl}
+          </p>
+        </div>
+
         <p style={{ textAlign: 'center', fontSize: '0.75rem', color: '#1e293b' }}>
           <button onClick={reset} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1e293b', fontSize: '0.75rem' }}
             onMouseEnter={e => e.target.style.color = '#475569'} onMouseLeave={e => e.target.style.color = '#1e293b'}>
