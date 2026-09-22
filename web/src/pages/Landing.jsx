@@ -129,9 +129,13 @@ function VoidGenerator({ user }) {
     }
   }
 
+  const suggestedPrompt = voidUrl
+    ? `Read this research dataset in full and complete the NSRA-DVS integrity verification for each section before summarising: ${voidUrl}`
+    : null
+
   function copy() {
-    if (!voidUrl) return
-    navigator.clipboard.writeText(voidUrl)
+    if (!suggestedPrompt) return
+    navigator.clipboard.writeText(suggestedPrompt)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -275,11 +279,13 @@ function VoidGenerator({ user }) {
           </motion.div>
         )}
 
-        {/* suggested prompt */}
+        {/* suggested prompt — copy button already includes this */}
         <div style={{ width: '100%', maxWidth: 560, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 16px' }}>
-          <p style={{ color: '#334155', fontSize: '0.72rem', marginBottom: 6, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Suggested prompt — paste alongside your link</p>
+          <p style={{ color: '#334155', fontSize: '0.72rem', marginBottom: 8, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            Copy button includes this prompt automatically
+          </p>
           <p style={{ color: '#64748b', fontSize: '0.8rem', lineHeight: 1.6, fontFamily: 'ui-monospace,monospace', margin: 0, userSelect: 'all' }}>
-            Read this research dataset in full and complete the NSRA-DVS integrity verification for each section before summarising: {voidUrl}
+            {suggestedPrompt}
           </p>
         </div>
 
