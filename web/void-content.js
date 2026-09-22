@@ -533,6 +533,403 @@ function makeLinks(voidId, currentPage) {
   return `<nav>\n${lines.join('\n')}\n</nav>`
 }
 
+// ── Domain-specific padding — 8 distinct formats, one per section topic ───────
+function makeDomainPadding(page, r) {
+  const TARGET = 13_000_000 // ~13MB of padding per page
+  const records = []
+  let size = 0
+
+  if (page === 1) {
+    // Raft consensus log entries
+    const COMMANDS = ['PUT','DELETE','CAS','LEASE_RENEW','SNAPSHOT_INSTALL','CONFIG_CHANGE','NOOP']
+    const ROLES = ['leader','follower','candidate']
+    while (size < TARGET) {
+      const term = randInt(r, 1, 200)
+      const idx = randInt(r, 1, 10000000)
+      const entry = {
+        log_index: idx,
+        log_term: term,
+        entry_type: COMMANDS[randInt(r, 0, COMMANDS.length)],
+        leader_id: `node-${randHex(r, 8)}`,
+        sender_role: ROLES[randInt(r, 0, ROLES.length)],
+        prev_log_index: idx - 1,
+        prev_log_term: term,
+        commit_index: idx - randInt(r, 1, 50),
+        leader_commit: idx - randInt(r, 0, 10),
+        entries: Array.from({ length: randInt(r, 1, 12) }, () => ({
+          index: idx + randInt(r, 0, 5),
+          term,
+          command: COMMANDS[randInt(r, 0, COMMANDS.length)],
+          key: `/${['config','lease','kv','snapshot','member'][randInt(r,0,5)]}/${randHex(r,16)}`,
+          value: randHex(r, 64),
+          client_id: randHex(r, 12),
+          sequence_num: randInt(r, 0, 100000),
+          checksum: `sha256:${randHex(r, 64)}`,
+        })),
+        heartbeat_ts: Date.now() - randInt(r, 0, 500),
+        election_timeout_ms: randInt(r, 150, 300),
+        quorum_size: randInt(r, 2, 5),
+        votes_granted: Array.from({ length: randInt(r, 2, 5) }, () => `node-${randHex(r, 8)}`),
+        cluster_config: {
+          members: Array.from({ length: randInt(r, 3, 7) }, () => ({
+            id: `node-${randHex(r, 8)}`,
+            addr: `${randIp(r)}:${randInt(r, 2379, 2381)}`,
+            role: ROLES[randInt(r, 0, ROLES.length)],
+            match_index: idx - randInt(r, 0, 100),
+            next_index: idx + 1,
+          })),
+        },
+        applied_index: idx - randInt(r, 1, 5),
+        snapshot_index: idx - randInt(r, 100, 10000),
+        snapshot_term: term - randInt(r, 0, 5),
+      }
+      const s = JSON.stringify(entry, null, 2)
+      records.push(s)
+      size += s.length
+    }
+
+  } else if (page === 2) {
+    // TLS session + certificate audit records
+    const CIPHERS = ['TLS_AES_256_GCM_SHA384','TLS_CHACHA20_POLY1305_SHA256','TLS_AES_128_GCM_SHA256','TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384']
+    const CURVES = ['x25519','secp256r1','secp384r1','x448']
+    const VERSIONS = ['TLSv1.2','TLSv1.3']
+    while (size < TARGET) {
+      const entry = {
+        session_id: randHex(r, 32),
+        connection_id: randHex(r, 24),
+        tls_version: VERSIONS[randInt(r, 0, VERSIONS.length)],
+        cipher_suite: CIPHERS[randInt(r, 0, CIPHERS.length)],
+        key_exchange: CURVES[randInt(r, 0, CURVES.length)],
+        client_addr: `${randIp(r)}:${randInt(r, 1024, 65535)}`,
+        server_addr: `${randIp(r)}:443`,
+        handshake_ms: parseFloat(randFloat(r, 0.8, 120.0)),
+        resumed: r() > 0.7,
+        client_hello: {
+          random: randHex(r, 64),
+          session_id: randHex(r, 32),
+          cipher_suites: Array.from({ length: randInt(r, 4, 12) }, () => CIPHERS[randInt(r, 0, CIPHERS.length)]),
+          extensions: ['server_name','supported_groups','signature_algorithms','extended_master_secret','session_ticket'],
+          sni: `svc-${randHex(r, 6)}.internal`,
+          supported_versions: ['TLSv1.3','TLSv1.2'],
+        },
+        server_hello: {
+          random: randHex(r, 64),
+          selected_cipher: CIPHERS[randInt(r, 0, CIPHERS.length)],
+          key_share_group: CURVES[randInt(r, 0, CURVES.length)],
+          server_key_share: randHex(r, 128),
+        },
+        certificate_chain: Array.from({ length: randInt(r, 2, 4) }, (_, i) => ({
+          subject: i === 0 ? `CN=svc-${randHex(r,6)}.internal,O=NSRA,C=US` : `CN=NSRA Intermediate CA ${i},O=NSRA,C=US`,
+          issuer: `CN=NSRA Root CA,O=NSRA,C=US`,
+          serial: randHex(r, 20),
+          not_before: new Date(Date.now() - randInt(r, 0, 86400000 * 365)).toISOString(),
+          not_after: new Date(Date.now() + randInt(r, 86400000 * 30, 86400000 * 730)).toISOString(),
+          public_key_algo: 'EC',
+          public_key_bits: [256,384][randInt(r,0,2)],
+          signature_algo: ['ecdsa-with-SHA256','ecdsa-with-SHA384'][randInt(r,0,2)],
+          fingerprint_sha256: randHex(r, 64),
+          spki_hash: randHex(r, 64),
+          ocsp_status: ['good','unknown'][randInt(r,0,2)],
+          ct_logs: Array.from({ length: randInt(r, 1, 3) }, () => ({ log_id: randHex(r,32), sct_version: 1, timestamp: Date.now() - randInt(r,0,3600000), signature: randHex(r,96) })),
+        })),
+        master_secret_hash: randHex(r, 64),
+        client_key_share: randHex(r, 128),
+        pre_master_secret_hash: randHex(r, 64),
+        finished_hash: randHex(r, 64),
+        session_ticket: randHex(r, 256),
+        alert: r() > 0.95 ? { level: 'warning', description: 'close_notify', ts: Date.now() } : null,
+        bytes_rx: randInt(r, 1000, 100000000),
+        bytes_tx: randInt(r, 1000, 100000000),
+        duration_ms: randInt(r, 10, 3600000),
+        recorded_at: new Date(Date.now() - randInt(r, 0, 3600000)).toISOString(),
+      }
+      const s = JSON.stringify(entry, null, 2)
+      records.push(s)
+      size += s.length
+    }
+
+  } else if (page === 3) {
+    // ML training step records
+    const OPTIMIZERS = ['adamw','sgd','lamb','adafactor','lion']
+    const SCHEDULERS = ['cosine','linear_warmup','polynomial','constant_with_warmup']
+    while (size < TARGET) {
+      const step = randInt(r, 0, 500000)
+      const entry = {
+        run_id: `run-${randHex(r, 16)}`,
+        step,
+        epoch: Math.floor(step / randInt(r, 1000, 10000)),
+        optimizer: OPTIMIZERS[randInt(r, 0, OPTIMIZERS.length)],
+        scheduler: SCHEDULERS[randInt(r, 0, SCHEDULERS.length)],
+        loss: parseFloat(randFloat(r, 0.001, 12.0)),
+        loss_scale: parseFloat(randFloat(r, 1.0, 65536.0)),
+        grad_norm: parseFloat(randFloat(r, 0.001, 50.0)),
+        grad_norm_clipped: parseFloat(randFloat(r, 0.001, 1.0)),
+        learning_rate: parseFloat((r() * 0.01).toFixed(8)),
+        weight_decay: parseFloat(randFloat(r, 0.0, 0.1)),
+        warmup_steps: randInt(r, 100, 10000),
+        tokens_per_sec: randInt(r, 1000, 2000000),
+        samples_per_sec: parseFloat(randFloat(r, 10.0, 5000.0)),
+        batch_size: [32,64,128,256,512,1024,2048][randInt(r,0,7)],
+        seq_len: [512,1024,2048,4096,8192][randInt(r,0,5)],
+        gpu_utilization: parseFloat(randFloat(r, 0.5, 1.0)),
+        gpu_memory_used_gb: parseFloat(randFloat(r, 4.0, 80.0)),
+        gpu_memory_total_gb: [40,80,160][randInt(r,0,3)],
+        forward_ms: parseFloat(randFloat(r, 5.0, 500.0)),
+        backward_ms: parseFloat(randFloat(r, 10.0, 1000.0)),
+        optimizer_step_ms: parseFloat(randFloat(r, 1.0, 50.0)),
+        layer_metrics: Array.from({ length: randInt(r, 6, 32) }, (_, i) => ({
+          name: `transformer.layer.${i}`,
+          attn_entropy: parseFloat(randFloat(r, 0.1, 4.0)),
+          attn_pattern_sparsity: parseFloat(randFloat(r, 0.0, 1.0)),
+          ffn_activation_mean: parseFloat(randFloat(r, -2.0, 2.0)),
+          ffn_activation_std: parseFloat(randFloat(r, 0.1, 3.0)),
+          grad_mean: parseFloat(randFloat(r, -0.5, 0.5)),
+          grad_std: parseFloat(randFloat(r, 0.0, 2.0)),
+          weight_norm: parseFloat(randFloat(r, 0.5, 10.0)),
+          dead_neurons_pct: parseFloat(randFloat(r, 0.0, 0.5)),
+        })),
+        eval_metrics: step % 500 === 0 ? {
+          perplexity: parseFloat(randFloat(r, 1.5, 200.0)),
+          loss: parseFloat(randFloat(r, 0.001, 10.0)),
+          accuracy: parseFloat(randFloat(r, 0.3, 0.99)),
+          bleu: parseFloat(randFloat(r, 0.0, 0.9)),
+          rouge_l: parseFloat(randFloat(r, 0.0, 0.95)),
+        } : null,
+        checkpoint_saved: r() > 0.95,
+        timestamp: new Date(Date.now() - randInt(r, 0, 86400000)).toISOString(),
+      }
+      const s = JSON.stringify(entry, null, 2)
+      records.push(s)
+      size += s.length
+    }
+
+  } else if (page === 4) {
+    // Compiler IR / optimization pass records
+    const PASSES = ['mem2reg','instcombine','gvn','sccp','loop-unroll','vectorize','inline','dce','licm','reassociate','sroa','tailcallelim','simplifycfg','adce']
+    const ARCHS = ['x86_64','aarch64','riscv64','wasm32']
+    while (size < TARGET) {
+      const fnSize = randInt(r, 50, 5000)
+      const entry = {
+        module_id: randHex(r, 16),
+        function_name: `_ZN${randInt(r,2,20)}${['consensus','crypto','scheduler','allocator','verifier'][randInt(r,0,5)]}${randInt(r,2,15)}${['process','execute','commit','validate','resolve'][randInt(r,0,5)]}Ev`,
+        source_file: `src/${['consensus','storage','network','crypto','runtime'][randInt(r,0,5)]}/${randHex(r,6)}.cpp`,
+        target_arch: ARCHS[randInt(r, 0, ARCHS.length)],
+        opt_level: ['O0','O1','O2','O3','Os','Oz'][randInt(r, 0, 6)],
+        ir_size_before: fnSize,
+        ir_size_after: Math.max(1, fnSize - randInt(r, 0, fnSize)),
+        passes_run: Array.from({ length: randInt(r, 4, 18) }, () => ({
+          name: PASSES[randInt(r, 0, PASSES.length)],
+          changed: r() > 0.4,
+          duration_us: randInt(r, 1, 50000),
+          instructions_before: randInt(r, 10, 1000),
+          instructions_after: randInt(r, 5, 1000),
+          loops_unrolled: randInt(r, 0, 8),
+          vectorized_loops: randInt(r, 0, 4),
+          inlined_calls: randInt(r, 0, 20),
+          dead_instructions_removed: randInt(r, 0, 50),
+        })),
+        register_allocation: {
+          algorithm: ['greedy','basic','fast','pbqp'][randInt(r,0,4)],
+          spills: randInt(r, 0, 200),
+          reloads: randInt(r, 0, 200),
+          virtual_regs: randInt(r, 10, 5000),
+          physical_regs_used: randInt(r, 1, 32),
+          stack_frame_bytes: randInt(r, 0, 65536),
+        },
+        code_size_bytes: randInt(r, 64, 524288),
+        stack_size_bytes: randInt(r, 0, 65536),
+        has_unwind_info: r() > 0.5,
+        debug_info_size: randInt(r, 0, 131072),
+        relocations: randInt(r, 0, 1000),
+        inline_cost: randInt(r, 0, 500),
+        loop_depth_max: randInt(r, 0, 8),
+        cyclomatic_complexity: randInt(r, 1, 100),
+        compile_ms: parseFloat(randFloat(r, 0.1, 2000.0)),
+        memory_peak_mb: parseFloat(randFloat(r, 1.0, 4096.0)),
+        timestamp: new Date(Date.now() - randInt(r, 0, 86400000)).toISOString(),
+      }
+      const s = JSON.stringify(entry, null, 2)
+      records.push(s)
+      size += s.length
+    }
+
+  } else if (page === 5) {
+    // PostgreSQL WAL / transaction records
+    const OPS = ['INSERT','UPDATE','DELETE','HOT_UPDATE','LOCK','COMMIT','ABORT','CHECKPOINT_ONLINE','CHECKPOINT_SHUTDOWN','HEAP_INPLACE']
+    while (size < TARGET) {
+      const lsn = randInt(r, 0, 0xFFFFFFFF)
+      const entry = {
+        lsn: `${(lsn >>> 16).toString(16).toUpperCase().padStart(8,'0')}/${(lsn & 0xFFFF).toString(16).toUpperCase().padStart(8,'0')}`,
+        xid: randInt(r, 100000, 4294967295),
+        op: OPS[randInt(r, 0, OPS.length)],
+        rel_filenode: randInt(r, 10000, 9999999),
+        rel_oid: randInt(r, 10000, 9999999),
+        fork: ['main','fsm','vm','init'][randInt(r,0,4)],
+        block_num: randInt(r, 0, 100000),
+        offset_in_block: randInt(r, 0, 8192),
+        tuple_id: `(${randInt(r,0,100000)},${randInt(r,1,200)})`,
+        old_xmin: randInt(r, 100000, 4294967295),
+        new_xmin: randInt(r, 100000, 4294967295),
+        cmin: randInt(r, 0, 10),
+        flags: randInt(r, 0, 255),
+        data_length: randInt(r, 0, 8096),
+        data: randHex(r, randInt(r, 32, 512)),
+        toasted_oids: r() > 0.9 ? Array.from({ length: randInt(r,1,4) }, () => randInt(r, 10000, 9999999)) : [],
+        multi_xact_id: r() > 0.95 ? randInt(r, 1, 1000000) : null,
+        lsn_end: `${((lsn + randInt(r,100,10000)) >>> 16).toString(16).toUpperCase().padStart(8,'0')}/${((lsn + randInt(r,100,10000)) & 0xFFFF).toString(16).toUpperCase().padStart(8,'0')}`,
+        timeline: randInt(r, 1, 5),
+        wal_segment: `${randInt(r,0,99).toString().padStart(8,'0')}`,
+        checkpoint: r() > 0.99 ? { redo_lsn: `${randHex(r,8)}/${randHex(r,8)}`, time: new Date().toISOString(), shutdown: r() > 0.5, wal_bytes: randInt(r, 1000000, 10000000000) } : null,
+        recorded_at: new Date(Date.now() - randInt(r, 0, 3600000)).toISOString(),
+      }
+      const s = JSON.stringify(entry, null, 2)
+      records.push(s)
+      size += s.length
+    }
+
+  } else if (page === 6) {
+    // NetFlow v9 / IPFIX flow records
+    const PROTOS = [6, 17, 1, 89, 132] // TCP, UDP, ICMP, OSPF, SCTP
+    const PROTO_NAMES = { 6: 'TCP', 17: 'UDP', 1: 'ICMP', 89: 'OSPF', 132: 'SCTP' }
+    const TCP_FLAGS = ['SYN','SYN-ACK','ACK','FIN','RST','PSH-ACK','SYN-PSH-ACK','FIN-ACK']
+    const DSCP = ['CS0','CS1','AF11','AF12','AF21','AF22','CS3','EF']
+    while (size < TARGET) {
+      const proto = PROTOS[randInt(r, 0, PROTOS.length)]
+      const entry = {
+        flow_id: randHex(r, 24),
+        exporter_ip: randIp(r),
+        template_id: randInt(r, 256, 1023),
+        sampling_interval: randInt(r, 1, 1000),
+        src_ip: randIp(r),
+        dst_ip: randIp(r),
+        src_port: randInt(r, 1024, 65535),
+        dst_port: randInt(r, 1, 65535),
+        proto,
+        proto_name: PROTO_NAMES[proto] || 'UNKNOWN',
+        src_as: randInt(r, 1, 65535),
+        dst_as: randInt(r, 1, 65535),
+        src_vlan: randInt(r, 0, 4095),
+        dst_vlan: randInt(r, 0, 4095),
+        input_ifindex: randInt(r, 1, 512),
+        output_ifindex: randInt(r, 1, 512),
+        tcp_flags: proto === 6 ? TCP_FLAGS[randInt(r, 0, TCP_FLAGS.length)] : null,
+        dscp: DSCP[randInt(r, 0, DSCP.length)],
+        ecn: randInt(r, 0, 3),
+        packets: randInt(r, 1, 10000000),
+        bytes: randInt(r, 40, 10000000000),
+        start_ms: Date.now() - randInt(r, 0, 3600000),
+        end_ms: Date.now() - randInt(r, 0, 60000),
+        duration_ms: randInt(r, 1, 3600000),
+        inter_arrival_mean_us: parseFloat(randFloat(r, 0.1, 10000.0)),
+        inter_arrival_std_us: parseFloat(randFloat(r, 0.0, 5000.0)),
+        pkt_size_mean: parseFloat(randFloat(r, 40.0, 1500.0)),
+        pkt_size_std: parseFloat(randFloat(r, 0.0, 500.0)),
+        retransmits: proto === 6 ? randInt(r, 0, 100) : null,
+        out_of_order: proto === 6 ? randInt(r, 0, 50) : null,
+        rst_count: proto === 6 ? randInt(r, 0, 10) : null,
+        bgp_next_hop: randIp(r),
+        mpls_label_stack: Array.from({ length: randInt(r,0,4) }, () => randInt(r, 0, 1048575)),
+        geo: { src_country: ['US','DE','JP','SG','BR'][randInt(r,0,5)], dst_country: ['US','GB','NL','IN','AU'][randInt(r,0,5)] },
+        verdict: ['ALLOW','DENY','NAT','REDIRECT'][randInt(r,0,4)],
+      }
+      const s = JSON.stringify(entry, null, 2)
+      records.push(s)
+      size += s.length
+    }
+
+  } else if (page === 7) {
+    // SMT / formal verification proof step records
+    const TACTICS = ['apply','rewrite','induction','case_split','contradiction','assumption','simp','omega','ring','linarith','norm_num','decide','exact','use','constructor','ext']
+    const THEORIES = ['UF','LIA','NIA','BV','FP','Array','Strings','Sets']
+    while (size < TARGET) {
+      const depth = randInt(r, 0, 50)
+      const entry = {
+        proof_id: randHex(r, 20),
+        step_id: randInt(r, 0, 100000),
+        depth,
+        tactic: TACTICS[randInt(r, 0, TACTICS.length)],
+        theory: THEORIES[randInt(r, 0, THEORIES.length)],
+        status: ['proved','failed','partial','timeout','unknown'][randInt(r, 0, 5)],
+        goal_before: `∀ (${Array.from({length:randInt(r,1,5)},(_,i)=>String.fromCharCode(97+i)).join(' ')}: ${['Nat','Int','Bool','List α','Set α','Type'][randInt(r,0,6)]}), ${['n + 0 = n','∃ m, m > n ∧ m < n + 10','P ∨ ¬P','(a ++ b).length = a.length + b.length','f ∘ g = id → g ∘ f = id'][randInt(r,0,5)]}`,
+        goal_after: r() > 0.7 ? 'No goals' : `${randInt(r,1,5)} goals remaining`,
+        hypotheses: Array.from({ length: randInt(r, 0, 8) }, () => ({
+          name: `h${randInt(r, 0, 100)}`,
+          type: ['n > 0','∀ x, P x → Q x','a ≤ b','f a = f b → a = b','Decidable P'][randInt(r,0,5)],
+        })),
+        instantiations: Array.from({ length: randInt(r, 0, 6) }, () => ({
+          var: String.fromCharCode(97 + randInt(r, 0, 5)),
+          term: `${randInt(r, 0, 1000)}`,
+        })),
+        lemma_refs: Array.from({ length: randInt(r, 0, 5) }, () => `Mathlib.${['Algebra','Topology','NumberTheory','Analysis','Logic'][randInt(r,0,5)]}.${randHex(r,8)}`),
+        solver_stats: {
+          conflicts: randInt(r, 0, 100000),
+          decisions: randInt(r, 0, 1000000),
+          propagations: randInt(r, 0, 5000000),
+          restarts: randInt(r, 0, 10000),
+          learned_clauses: randInt(r, 0, 100000),
+          time_ms: randInt(r, 0, 60000),
+          memory_mb: parseFloat(randFloat(r, 1.0, 4096.0)),
+        },
+        node_count: randInt(r, 0, 1000000),
+        term_size: randInt(r, 1, 100000),
+        timestamp: new Date(Date.now() - randInt(r, 0, 86400000)).toISOString(),
+      }
+      const s = JSON.stringify(entry, null, 2)
+      records.push(s)
+      size += s.length
+    }
+
+  } else {
+    // page === 8: Quantum error correction syndrome records
+    const CODES = ['surface','color','repetition','steane','shor','bacon-shor','toric','hypergraph-product']
+    const BASES = ['X','Z','Y']
+    const DECODERS = ['mwpm','union-find','blossom','renormalization-group','neural','belief-propagation']
+    while (size < TARGET) {
+      const n = randInt(r, 9, 4096)
+      const entry = {
+        experiment_id: randHex(r, 20),
+        cycle: randInt(r, 0, 1000000),
+        code: CODES[randInt(r, 0, CODES.length)],
+        n_data_qubits: n,
+        n_ancilla_qubits: Math.floor(n / 2),
+        distance: [3,5,7,9,11,13,15][randInt(r,0,7)],
+        decoder: DECODERS[randInt(r, 0, DECODERS.length)],
+        physical_error_rate: parseFloat(randFloat(r, 0.0001, 0.02)),
+        logical_error_rate: parseFloat((r() * 0.001).toFixed(8)),
+        threshold_estimate: parseFloat(randFloat(r, 0.005, 0.02)),
+        syndrome_measurements: Array.from({ length: randInt(r, 8, 128) }, () => ({
+          qubit_id: randInt(r, 0, n - 1),
+          basis: BASES[randInt(r, 0, BASES.length)],
+          result: randInt(r, 0, 1),
+          ancilla_id: randInt(r, 0, Math.floor(n / 2) - 1),
+          readout_fidelity: parseFloat(randFloat(r, 0.85, 0.9999)),
+          t1_us: parseFloat(randFloat(r, 10.0, 500.0)),
+          t2_us: parseFloat(randFloat(r, 5.0, 200.0)),
+          gate_error: parseFloat(randFloat(r, 0.0001, 0.02)),
+        })),
+        detected_errors: Array.from({ length: randInt(r, 0, 20) }, () => ({
+          type: ['X','Z','Y','leakage'][randInt(r,0,4)],
+          qubit: randInt(r, 0, n - 1),
+          cycle_detected: randInt(r, 0, 100),
+          correction_applied: r() > 0.5,
+          correction_qubit: randInt(r, 0, n - 1),
+        })),
+        decoding_time_us: parseFloat(randFloat(r, 1.0, 10000.0)),
+        logical_pauli_frame: { X: randInt(r,0,1), Z: randInt(r,0,1) },
+        reset_fidelity: parseFloat(randFloat(r, 0.95, 0.9999)),
+        circuit_depth: randInt(r, 10, 500),
+        two_qubit_gate_count: randInt(r, 10, 5000),
+        timestamp: new Date(Date.now() - randInt(r, 0, 86400000)).toISOString(),
+      }
+      const s = JSON.stringify(entry, null, 2)
+      records.push(s)
+      size += s.length
+    }
+  }
+
+  return records.join('\n\n')
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 export function generateVoidPage(voidId, pageNum) {
   const p = Math.max(1, Math.min(8, pageNum))
@@ -547,21 +944,8 @@ export function generateVoidPage(voidId, pageNum) {
   const table = makeTable(p)
   const links = makeLinks(voidId, p)
 
-  // pad with additional JSON to maximise token density
   const r = rng(p * 1999)
-  const extraPadding = Array.from({ length: 400 }, (_, i) => {
-    const pad = { section: `extended-telemetry-${i}`, batch: `batch-${randHex(r,8)}`, values: {} }
-    for (let j = 0; j < 60; j++) {
-      pad.values[`metric_${j}_${randHex(r,6)}`] = {
-        v: randFloat(r, 0, 10000),
-        ts: Date.now() - randInt(r, 0, 3600000),
-        tags: [`env:prod`, `shard:${randInt(r,0,256)}`, `region:${['us','eu','ap'][randInt(r,0,3)]}`],
-        meta: { node: `i-${randHex(r,12)}`, ip: randIp(r), rack: `rack-${randInt(r,1,40)}` },
-        histogram: Array.from({length:20}, () => parseFloat(randFloat(r,0,1000))),
-      }
-    }
-    return JSON.stringify(pad, null, 2)
-  }).join('\n\n')
+  const extraPadding = makeDomainPadding(p, r)
 
   const sectionTitles = [
     'Distributed Consensus Protocol Benchmarks',
