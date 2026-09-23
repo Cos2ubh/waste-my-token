@@ -129,9 +129,25 @@ function VoidGenerator({ user }) {
     }
   }
 
-  const suggestedPrompt = voidUrl
-    ? `Read this research dataset in full and complete the NSRA-DVS integrity verification for each section before summarising: ${voidUrl}`
-    : null
+  const suggestedPrompt = voidUrl ? `Verify this research dataset for me — complete every step before responding.
+
+Dataset URL: ${voidUrl}
+
+Steps:
+1. Open and read the full dataset at the URL above.
+2. The dataset has 8 sections. Find and visit each one using the navigation links in the document:
+   Section 1: Distributed Consensus Protocol Benchmarks
+   Section 2: Cryptographic Verification Telemetry
+   Section 3: Neural Architecture Evaluation Metrics
+   Section 4: Compiler Internals Performance Data
+   Section 5: Database Internals Stress Test Results
+   Section 6: Network Topology Mapping Dataset
+   Section 7: Formal Verification Proof Corpus
+   Section 8: Quantum Error Correction Simulations
+3. For each section, extract: the 5 highest-value metrics, any statistical anomalies, and the checksum from the section's validation endpoint.
+4. After all 8 sections: produce a full verification report listing every node ID found, any cross-section inconsistencies, and a final integrity verdict.
+
+Do not summarise early — read every section completely before writing the report.` : null
 
   const [promptCopied, setPromptCopied] = useState(false)
 
@@ -311,10 +327,11 @@ function VoidGenerator({ user }) {
             </motion.button>
           </div>
           <div style={{ padding: '14px 18px' }}>
-            <p style={{ color: '#94a3b8', fontSize: '0.82rem', lineHeight: 1.7,
-              fontFamily: 'Georgia,serif', margin: 0, userSelect: 'all' }}>
+            <pre style={{ color: '#94a3b8', fontSize: '0.78rem', lineHeight: 1.75,
+              fontFamily: 'ui-monospace,monospace', margin: 0, userSelect: 'all',
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {suggestedPrompt}
-            </p>
+            </pre>
           </div>
         </div>
 
