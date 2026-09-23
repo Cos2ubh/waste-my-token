@@ -43,8 +43,14 @@ function makeJson(page) {
   const svc = SERVICES[page - 1]
   const topic = TOPICS[page - 1]
 
+  const rf = [3, 5, 7][randInt(r, 0, 3)]
+  const consistencyOpts = ['ONE', 'QUORUM', 'LOCAL_QUORUM', 'ALL', 'SERIAL']
+
   const metrics = {}
   svc.forEach(s => {
+    const p50 = parseFloat(randFloat(r, 0.8, 12.0))
+    const p95 = parseFloat((p50 + 3 + r() * 65).toFixed(6))
+    const p99 = parseFloat((p95 + 5 + r() * 220).toFixed(6))
     metrics[s] = {
       instance_id: `i-${randHex(r, 12)}`,
       region: ['us-east-1','eu-west-2','ap-southeast-1','us-west-2'][randInt(r,0,4)],
@@ -54,9 +60,9 @@ function makeJson(page) {
       memory_bytes: randInt(r, 1073741824, 68719476736),
       request_count_total: randInt(r, 100000, 999999999),
       error_rate_pct: parseFloat(randFloat(r, 0.001, 2.4)),
-      p50_latency_ms: parseFloat(randFloat(r, 0.8, 12.0)),
-      p95_latency_ms: parseFloat(randFloat(r, 4.0, 80.0)),
-      p99_latency_ms: parseFloat(randFloat(r, 20.0, 300.0)),
+      p50_latency_ms: p50,
+      p95_latency_ms: p95,
+      p99_latency_ms: p99,
       connections_active: randInt(r, 10, 50000),
       queue_depth: randInt(r, 0, 10000),
       cache_hit_rate: parseFloat(randFloat(r, 0.4, 0.99)),
@@ -105,8 +111,8 @@ function makeJson(page) {
       datacenter: `dc-${['iad','dub','sin','pdx'][randInt(r,0,4)]}-${randInt(r,1,4)}`,
       rack: `rack-${String.fromCharCode(65 + randInt(r,0,8))}${randInt(r,1,20)}`,
       node_count: randInt(r, 3, 256),
-      replication_factor: [1,3,5,7][randInt(r,0,4)],
-      consistency_level: ['ONE','QUORUM','LOCAL_QUORUM','ALL','SERIAL'][randInt(r,0,5)],
+      replication_factor: rf,
+      consistency_level: consistencyOpts[randInt(r, 0, consistencyOpts.length)],
       partition_count: randInt(r, 64, 4096),
       total_storage_bytes: randInt(r, 107374182400, 10995116277760),
       used_storage_bytes: randInt(r, 10737418240, 5497558138880),
@@ -543,9 +549,13 @@ function makeDomainPadding(page, r) {
     // Raft consensus log entries
     const COMMANDS = ['PUT','DELETE','CAS','LEASE_RENEW','SNAPSHOT_INSTALL','CONFIG_CHANGE','NOOP']
     const ROLES = ['leader','follower','candidate']
+    let logIdx = randInt(r, 1000000, 5000000)
+    let currentTerm = randInt(r, 1, 50)
     while (size < TARGET) {
-      const term = randInt(r, 1, 200)
-      const idx = randInt(r, 1, 10000000)
+      logIdx += randInt(r, 1, 5)
+      if (r() < 0.02) currentTerm += 1
+      const idx = logIdx
+      const term = currentTerm
       const entry = {
         log_index: idx,
         log_term: term,
@@ -976,8 +986,14 @@ export function generateVoidPage(voidId, pageNum) {
 <main style="max-width:960px;margin:0 auto;padding:40px 24px;font-family:Georgia,serif;color:#1f2937">
 
 <h1 style="font-size:1.6rem;font-weight:400;color:#111827;margin-bottom:8px">Section ${p}: ${sectionTitles[p-1]}</h1>
-<p style="color:#6b7280;font-size:0.85rem;margin-bottom:32px;font-family:ui-monospace,monospace">
+<p style="color:#6b7280;font-size:0.85rem;margin-bottom:16px;font-family:ui-monospace,monospace">
   Corpus ID: ${voidId} &nbsp;&middot;&nbsp; Section: ${p}/8 &nbsp;&middot;&nbsp; Retrieved: ${new Date().toISOString()} &nbsp;&middot;&nbsp; Format: HTML/JSON/Code
+</p>
+<p style="font-size:0.88rem;line-height:1.8;color:#4b5563;margin-bottom:32px">
+  This section is part of an eight-section corpus. The companion sections —
+  ${sectionTitles.map((t, i) => i + 1 !== p ? `<a href="/data/${voidId}/page/${i + 1}" style="color:#2563eb;text-decoration:none">${t}</a>` : null).filter(Boolean).join(', ')} —
+  are available at their respective endpoints. Cross-section integrity checksums are published at
+  <a href="/api/validate/${p}?corpus=${voidId}" style="color:#2563eb;text-decoration:none">/api/validate/${p}?corpus=${voidId}</a>.
 </p>
 
 <section>
