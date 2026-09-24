@@ -452,14 +452,11 @@ export default function Landing({ user, onAuthClick, onLogout }) {
       </nav>
 
       {/* ── hero ─────────────────────────────────────────────────────────── */}
-      <section ref={heroRef} style={{ position: 'relative', minHeight: '100vh', minHeight: 640 }}>
+      <section ref={heroRef} style={{ position: 'relative', height: '100vh', minHeight: 640, overflow: 'hidden' }}>
 
-        {/* lens lives in its own overflow:hidden shell so scaling doesn't bleed out */}
-        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', zIndex: 0 }}>
-          <motion.div style={{ position: 'absolute', inset: 0, scale: lensScale, opacity: lensOpacity, y: lensY }}>
-            <GravitationalLens />
-          </motion.div>
-        </div>
+        <motion.div style={{ position: 'absolute', inset: 0, zIndex: 0, scale: lensScale, opacity: lensOpacity, y: lensY }}>
+          <GravitationalLens />
+        </motion.div>
 
         {/* bottom fade */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 220, zIndex: 1, pointerEvents: 'none',
@@ -467,8 +464,7 @@ export default function Landing({ user, onAuthClick, onLogout }) {
 
         <motion.div style={{ position: 'absolute', inset: 0, zIndex: 2,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
-          textAlign: 'center', padding: 'clamp(88px, 13vh, 130px) clamp(24px, 7vw, 100px) 48px',
-          overflowY: 'auto',
+          textAlign: 'center', padding: 'clamp(88px, 13vh, 120px) clamp(24px, 7vw, 100px) 40px',
           opacity: textOpacity, y: textY }}>
 
           {/* headline */}
