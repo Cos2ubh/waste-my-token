@@ -452,19 +452,23 @@ export default function Landing({ user, onAuthClick, onLogout }) {
       </nav>
 
       {/* ── hero ─────────────────────────────────────────────────────────── */}
-      <section ref={heroRef} style={{ position: 'relative', height: '100vh', minHeight: 640, overflow: 'hidden' }}>
+      <section ref={heroRef} style={{ position: 'relative', minHeight: '100vh', minHeight: 640 }}>
 
-        <motion.div style={{ position: 'absolute', inset: 0, zIndex: 0, scale: lensScale, opacity: lensOpacity, y: lensY }}>
-          <GravitationalLens />
-        </motion.div>
+        {/* lens lives in its own overflow:hidden shell so scaling doesn't bleed out */}
+        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', zIndex: 0 }}>
+          <motion.div style={{ position: 'absolute', inset: 0, scale: lensScale, opacity: lensOpacity, y: lensY }}>
+            <GravitationalLens />
+          </motion.div>
+        </div>
 
         {/* bottom fade */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 220, zIndex: 1, pointerEvents: 'none',
           background: 'linear-gradient(to bottom, transparent, #050508)' }} />
 
         <motion.div style={{ position: 'absolute', inset: 0, zIndex: 2,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          textAlign: 'center', padding: '0 clamp(24px, 7vw, 100px)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+          textAlign: 'center', padding: 'clamp(88px, 13vh, 130px) clamp(24px, 7vw, 100px) 48px',
+          overflowY: 'auto',
           opacity: textOpacity, y: textY }}>
 
           {/* headline */}
