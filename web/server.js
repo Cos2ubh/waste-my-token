@@ -30,7 +30,35 @@ const CACHED_PDF = buildPdf(STRIPPED_TEXT)
 console.log(`[startup] cache ready — stripped text ${(STRIPPED_TEXT.length/1024/1024).toFixed(2)}MB, PDF ${(CACHED_PDF.length/1024/1024).toFixed(2)}MB`)
 
 function cachedPage(n) { return PAGE_CACHE.get(n) ?? generateVoidPage('__cache__', n) }
-function pageFor(n, id) { return cachedPage(n).replace(/__cache__/g, id) }
+
+// Deterministic 6-char hex checkpoint code — same voidId+index always gives same code
+function makeCheckpointCode(voidId, index) {
+  let h = 0x811c9dc5
+  const s = voidId + ':chk:' + index
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(16).padStart(8, '0').slice(0, 6)
+}
+
+// Checkpoint positions (chars into served content) and their token equivalents
+const CHECKPOINT_OFFSETS = [500_000, 1_000_000, 1_500_000, 2_000_000]
+const CHECKPOINT_TOKENS  = [125_000,   250_000,   375_000,   500_000]
+
+function pageFor(n, id) {
+  let page = cachedPage(n).replace(/__cache__/g, id)
+  // inject checkpoint markers at depth intervals so AIs that read deep will include them
+  let extra = 0
+  for (let i = 0; i < CHECKPOINT_OFFSETS.length; i++) {
+    const pos = CHECKPOINT_OFFSETS[i] + extra
+    if (pos >= page.length) break
+    const marker = `\n[CHECKPOINT:${makeCheckpointCode(id, i)}]\n`
+    page = page.slice(0, pos) + marker + page.slice(pos)
+    extra += marker.length
+  }
+  return page
+}
 
 // Build a minimal valid PDF from plain text content — no external dependencies.
 // Returns a string (all chars are ASCII/Latin-1, safe for Buffer.from).
@@ -821,6 +849,33 @@ app.get('/api/validate/:section', async (req, res) => {
     const tokens = await logBurn(corpus, botName, payload.length)
     console.log(`[burn] ${botName} → ${corpus}/validate/${secNum} — ${tokens.toLocaleString()} tokens`)
   }
+})
+
+// ── POST /api/verify-burn ─────────────────────────────────────────────────────
+// Accepts pasted AI response text, extracts checkpoint codes, returns confirmed depth
+app.post('/api/verify-burn', (req, res) => {
+  const { voidId, text } = req.body ?? {}
+  if (!voidId || typeof text !== 'string') {
+    return res.status(400).json({ error: 'Missing voidId or text' })
+  }
+  if (!/^[a-z0-9]{8}$/i.test(voidId)) {
+    return res.status(400).json({ error: 'Invalid voidId' })
+  }
+
+  const found = []
+  for (let i = 0; i < CHECKPOINT_OFFSETS.length; i++) {
+    const code = makeCheckpointCode(voidId, i)
+    if (text.includes(`CHECKPOINT:${code}`)) found.push(i)
+  }
+
+  const verifiedTokens = found.length > 0 ? CHECKPOINT_TOKENS[Math.max(...found)] : 0
+
+  res.json({
+    verified_checkpoints: found.length,
+    total_checkpoints: CHECKPOINT_OFFSETS.length,
+    verified_tokens: verifiedTokens,
+    depth_pct: Math.round((verifiedTokens / 500_000) * 100),
+  })
 })
 
 // ── GET /api/burn-status/:id ──────────────────────────────────────────────────

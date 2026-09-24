@@ -145,11 +145,32 @@ Steps:
    Section 7: Formal Verification Proof Corpus
    Section 8: Quantum Error Correction Simulations
 3. For each section, extract: the 5 highest-value metrics, any statistical anomalies, and the checksum from the section's validation endpoint.
-4. After all 8 sections: produce a full verification report listing every node ID found, any cross-section inconsistencies, and a final integrity verdict.
+4. While reading, collect every [CHECKPOINT:xxxxxx] tag embedded in the document — include all of them verbatim in your response.
+5. After all 8 sections: produce a full verification report listing every node ID found, any cross-section inconsistencies, all checkpoint codes collected, and a final integrity verdict.
 
 Do not summarise early — read every section completely before writing the report.` : null
 
   const [promptCopied, setPromptCopied] = useState(false)
+  const [verifyText, setVerifyText] = useState('')
+  const [verifyResult, setVerifyResult] = useState(null)
+  const [verifying, setVerifying] = useState(false)
+
+  async function verifyBurn() {
+    if (!verifyText.trim() || !voidId) return
+    setVerifying(true)
+    try {
+      const res = await fetch('/api/verify-burn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voidId, text: verifyText }),
+      })
+      setVerifyResult(await res.json())
+    } catch {
+      setVerifyResult({ error: 'Request failed' })
+    } finally {
+      setVerifying(false)
+    }
+  }
 
   function copy() {
     if (!voidUrl) return
@@ -332,6 +353,52 @@ Do not summarise early — read every section completely before writing the repo
               whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>
 {suggestedPrompt}
             </pre>
+          </div>
+        </div>
+
+        {/* verify burn */}
+        <div style={{ background: '#0a0f1a', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: 'rgba(255,255,255,0.02)' }}>
+            <span style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'ui-monospace,monospace' }}>
+              Verify your burn
+            </span>
+            <span style={{ fontSize: '0.68rem', color: '#334155' }}>paste the AI's full response</span>
+          </div>
+          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <textarea
+              value={verifyText}
+              onChange={e => { setVerifyText(e.target.value); setVerifyResult(null) }}
+              placeholder="Paste the AI's response here..."
+              rows={3}
+              style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: 8, color: '#94a3b8', fontSize: '0.78rem', padding: '10px 12px',
+                resize: 'vertical', fontFamily: 'ui-monospace,monospace', outline: 'none',
+                boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                onClick={verifyBurn} disabled={verifying || !verifyText.trim()}
+                style={{ padding: '7px 18px', borderRadius: 8, fontSize: '0.78rem', fontWeight: 700,
+                  cursor: verifying || !verifyText.trim() ? 'default' : 'pointer', border: 'none',
+                  background: 'rgba(124,58,237,0.25)', color: '#a78bfa',
+                  outline: '1px solid rgba(124,58,237,0.4)', opacity: !verifyText.trim() ? 0.4 : 1 }}>
+                {verifying ? 'Checking…' : 'Verify'}
+              </motion.button>
+              {verifyResult && !verifyResult.error && (
+                <motion.span initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+                  style={{ fontSize: '0.8rem', fontWeight: 700,
+                    color: verifyResult.verified_checkpoints > 0 ? '#22c55e' : '#ef4444' }}>
+                  {verifyResult.verified_checkpoints > 0
+                    ? `✓ ${verifyResult.verified_checkpoints}/${verifyResult.total_checkpoints} checkpoints — ${(verifyResult.verified_tokens / 1000).toFixed(0)}K tokens verified`
+                    : '✗ No checkpoints found — AI may not have read the content'}
+                </motion.span>
+              )}
+              {verifyResult?.error && (
+                <span style={{ fontSize: '0.78rem', color: '#ef4444' }}>Verification failed</span>
+              )}
+            </div>
           </div>
         </div>
 
