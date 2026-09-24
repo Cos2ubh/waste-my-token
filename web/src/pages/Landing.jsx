@@ -326,11 +326,11 @@ Do not summarise early — read every section completely before writing the repo
               {promptCopied ? '✓ Copied' : 'Copy prompt'}
             </motion.button>
           </div>
-          <div style={{ padding: '14px 18px' }}>
+          <div style={{ padding: '14px 18px', maxHeight: 160, overflowY: 'auto' }}>
             <pre style={{ color: '#94a3b8', fontSize: '0.78rem', lineHeight: 1.75,
               fontFamily: 'ui-monospace,monospace', margin: 0, userSelect: 'all',
-              whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {suggestedPrompt}
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>
+{suggestedPrompt}
             </pre>
           </div>
         </div>
