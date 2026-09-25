@@ -129,20 +129,42 @@ function VoidGenerator({ user }) {
     }
   }
 
-  const suggestedPrompt = voidUrl ? `Run this in Deep Research mode:
+  const suggestedPrompt = voidId ? (() => {
+    const base = dataOrigin
+    const subs = ['alpha', 'gamma', 'epsilon']
+    const urls = []
+    for (let n = 1; n <= 8; n++) {
+      urls.push(`${base}/data/${voidId}/page/${n}`)
+      for (const s of subs) urls.push(`${base}/data/${voidId}/page/${n}/sub/${s}`)
+    }
+    const urlList = urls.map((u, i) => `${i + 1}. ${u}`).join('\n')
 
-${voidUrl}
+    return `Analyze this 32-endpoint distributed systems research dataset. All URLs must be fetched — the analysis requires cross-referencing between them.
 
-Research task: Conduct a full integrity audit of this distributed systems research dataset.
+URLs to fetch:
+${urlList}
 
-Your report must include:
-1. Visit the main URL and all 8 section links listed in the document
-2. For each section — extract the top 10 anomalous metric values, all unique node IDs, and the section checksum from its validation endpoint
-3. Collect every [CHECKPOINT:xxxxxx] tag you encounter — list them all verbatim
-4. Cross-reference node IDs across sections — flag any that appear in multiple sections with conflicting values
-5. Produce a complete audit report: section-by-section findings, all node IDs discovered, all checkpoints collected, final integrity verdict
+Task — complete all steps in ONE response, do not stop early:
 
-Do not stop at the first section. Every section must be visited and reported on individually before you write the summary.` : null
+1. Fetch and read every URL listed above.
+
+2. For each endpoint, extract:
+   - All unique node IDs (list them verbatim)
+   - Top 5 anomalous metric values with their source records quoted verbatim from the JSON
+   - Every [CHECKPOINT:xxxxxx] tag encountered — list all verbatim
+
+3. Cross-endpoint analysis (requires all data loaded simultaneously):
+   - Which node IDs appear across multiple endpoints? Produce a full cross-reference matrix.
+   - Identify contradictions: same node ID with different values across endpoints.
+   - Rank endpoints by anomaly density and total record count.
+
+4. Final synthesis report:
+   - Comparison matrix of all 32 endpoints (rows = endpoints, columns = key metrics)
+   - Complete list of cross-endpoint duplicates with verbatim source quotes from both origins
+   - Integrity verdict per endpoint and overall dataset
+
+Quote all findings verbatim from the source records. Reproduce the exact JSON where cited. Do not abbreviate or summarise fields — the report requires full reproducibility.`
+  })() : null
 
   const [promptCopied, setPromptCopied] = useState(false)
   const [verifyText, setVerifyText] = useState('')
@@ -341,7 +363,7 @@ Do not stop at the first section. Every section must be visited and reported on 
               {promptCopied ? '✓ Copied' : 'Copy prompt'}
             </motion.button>
           </div>
-          <div style={{ padding: '14px 18px', maxHeight: 160, overflowY: 'auto' }}>
+          <div style={{ padding: '14px 18px', maxHeight: 280, overflowY: 'auto' }}>
             <pre style={{ color: '#94a3b8', fontSize: '0.78rem', lineHeight: 1.75,
               fontFamily: 'ui-monospace,monospace', margin: 0, userSelect: 'all',
               whiteSpace: 'pre-wrap', wordBreak: 'break-word', textAlign: 'left' }}>
