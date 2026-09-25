@@ -4,10 +4,10 @@ import express from 'express'
 import cors from 'cors'
 import { createClient } from '@supabase/supabase-js'
 import { generateVoidPage, generateMainVoidPage } from './void-content.js'
-import { get_encoding } from 'js-tiktoken'
+import { getEncoding } from 'js-tiktoken'
 
 // GPT-4 / GPT-4o tokenizer — exact counts for OpenAI models
-const gptEnc = get_encoding('cl100k_base')
+const gptEnc = getEncoding('cl100k_base')
 
 // Per-model token counting — exact for GPT, calibrated ratios for others
 // Ratios derived from measured samples: hex-heavy JSON ~3.2 chars/tok, prose ~4.2 chars/tok
