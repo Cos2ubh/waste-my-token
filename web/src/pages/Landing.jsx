@@ -129,7 +129,7 @@ function VoidGenerator({ user }) {
     }
   }
 
-  const suggestedPrompt = voidUrl ? `Use Deep Research (Perplexity, ChatGPT, or Gemini Deep Research) on this:
+  const suggestedPrompt = voidUrl ? `Run this in Deep Research mode:
 
 ${voidUrl}
 
@@ -578,7 +578,7 @@ export default function Landing({ user, onAuthClick, onLogout }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'clamp(14px, 2vw, 24px)' }}>
           {[
             { n: '01', icon: '🔗', title: 'Generate your link', body: 'One click. No signup. You get a unique void URL — yours forever (or until you clear localStorage).' },
-            { n: '02', icon: '🤖', title: 'Use Deep Research', body: 'Copy the prompt. Open Perplexity Deep Research, ChatGPT Deep Research, or Gemini Deep Research. Paste and run. Deep Research follows every link — burns 10x more.' },
+            { n: '02', icon: '🤖', title: 'Use Deep Research', body: 'Copy the prompt. Open any AI\'s Deep Research mode. Paste and run. Deep Research follows every link — burns 10x more than a normal read.' },
             { n: '03', icon: '🏆', title: 'Claim your rank', body: 'When the AI returns, you\'ve burned tokens. Sign up to lock in your score and appear on the leaderboard.' },
           ].map((s, i) => (
             <Reveal key={s.n} from={{ opacity: 0, y: 24, x: [-40, 0, 40][i] }} delay={i * 0.1}>
