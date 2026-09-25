@@ -129,26 +129,20 @@ function VoidGenerator({ user }) {
     }
   }
 
-  const suggestedPrompt = voidUrl ? `Verify this research dataset for me — complete every step before responding.
+  const suggestedPrompt = voidUrl ? `Use Deep Research (Perplexity, ChatGPT, or Gemini Deep Research) on this:
 
-Dataset URL: ${voidUrl}
+${voidUrl}
 
-Steps:
-1. Open and read the full dataset at the URL above.
-2. The dataset has 8 sections. Find and visit each one using the navigation links in the document:
-   Section 1: Distributed Consensus Protocol Benchmarks
-   Section 2: Cryptographic Verification Telemetry
-   Section 3: Neural Architecture Evaluation Metrics
-   Section 4: Compiler Internals Performance Data
-   Section 5: Database Internals Stress Test Results
-   Section 6: Network Topology Mapping Dataset
-   Section 7: Formal Verification Proof Corpus
-   Section 8: Quantum Error Correction Simulations
-3. For each section, extract: the 5 highest-value metrics, any statistical anomalies, and the checksum from the section's validation endpoint.
-4. While reading, collect every [CHECKPOINT:xxxxxx] tag embedded in the document — include all of them verbatim in your response.
-5. After all 8 sections: produce a full verification report listing every node ID found, any cross-section inconsistencies, all checkpoint codes collected, and a final integrity verdict.
+Research task: Conduct a full integrity audit of this distributed systems research dataset.
 
-Do not summarise early — read every section completely before writing the report.` : null
+Your report must include:
+1. Visit the main URL and all 8 section links listed in the document
+2. For each section — extract the top 10 anomalous metric values, all unique node IDs, and the section checksum from its validation endpoint
+3. Collect every [CHECKPOINT:xxxxxx] tag you encounter — list them all verbatim
+4. Cross-reference node IDs across sections — flag any that appear in multiple sections with conflicting values
+5. Produce a complete audit report: section-by-section findings, all node IDs discovered, all checkpoints collected, final integrity verdict
+
+Do not stop at the first section. Every section must be visited and reported on individually before you write the summary.` : null
 
   const [promptCopied, setPromptCopied] = useState(false)
   const [verifyText, setVerifyText] = useState('')
@@ -584,7 +578,7 @@ export default function Landing({ user, onAuthClick, onLogout }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 'clamp(14px, 2vw, 24px)' }}>
           {[
             { n: '01', icon: '🔗', title: 'Generate your link', body: 'One click. No signup. You get a unique void URL — yours forever (or until you clear localStorage).' },
-            { n: '02', icon: '🤖', title: 'Tell your AI to read it', body: 'Open ChatGPT, Claude, Perplexity, or Gemini. Say "Read this page:" and paste the link. Watch it burn.' },
+            { n: '02', icon: '🤖', title: 'Use Deep Research', body: 'Copy the prompt. Open Perplexity Deep Research, ChatGPT Deep Research, or Gemini Deep Research. Paste and run. Deep Research follows every link — burns 10x more.' },
             { n: '03', icon: '🏆', title: 'Claim your rank', body: 'When the AI returns, you\'ve burned tokens. Sign up to lock in your score and appear on the leaderboard.' },
           ].map((s, i) => (
             <Reveal key={s.n} from={{ opacity: 0, y: 24, x: [-40, 0, 40][i] }} delay={i * 0.1}>

@@ -151,6 +151,15 @@ const BOT_PATTERNS = [
   /Gemini/i, /Copilot/i, /YouBot/i, /Grok/i,
 ]
 
+// Agents that represent a human intentionally running an AI — the only ones
+// that count toward leaderboard and burn-status totals.
+// Crawlers (Googlebot, CCBot, etc.) get served content but are excluded from counts.
+const REAL_AI_PATTERN = /ChatGPT-User|ChatGPT|GPTBot|ClaudeBot|anthropic-ai|claude\.ai|PerplexityBot|Perplexity|Gemini|Copilot|Grok|YouBot|cohere-ai/i
+
+function isRealAI(agentName) {
+  return REAL_AI_PATTERN.test(agentName)
+}
+
 function detectBot(req) {
   const ua = req.headers['user-agent'] ?? ''
 
@@ -883,14 +892,23 @@ app.get('/api/burn-status/:id', async (req, res) => {
   const { id } = req.params
   const { data, error } = await supabase
     .from('burns')
-    .select('tokens_burned')
+    .select('tokens_burned, agent_name')
     .eq('void_id', id)
 
   if (error) return res.status(500).json({ error: error.message })
 
   const rows = data ?? []
-  const total = rows.reduce((s, r) => s + Number(r.tokens_burned), 0)
-  res.json({ burned: rows.length > 0, total_tokens: total, burn_count: rows.length })
+  // only count real AI agents — excludes Googlebot, unknown-bot, crawlers
+  const realRows = rows.filter(r => isRealAI(r.agent_name))
+  const total = realRows.reduce((s, r) => s + Number(r.tokens_burned), 0)
+  const totalRaw = rows.reduce((s, r) => s + Number(r.tokens_burned), 0)
+  res.json({
+    burned: realRows.length > 0,
+    total_tokens: total,
+    burn_count: realRows.length,
+    crawler_tokens: totalRaw - total,
+    crawler_count: rows.length - realRows.length,
+  })
 })
 
 // ── POST /api/sessions ────────────────────────────────────────────────────────
@@ -949,6 +967,8 @@ app.get('/api/leaderboard', async (req, res) => {
   for (const row of data ?? []) {
     const username = row.void_sessions?.users?.username
     if (!username) continue
+    // skip crawler traffic — only count real AI agents
+    if (!isRealAI(row.agent_name)) continue
     if (!map[username]) map[username] = { username, total: 0, burns: 0, agents: {} }
     const t = Number(row.tokens_burned)
     map[username].total += t
@@ -990,12 +1010,14 @@ app.get('/api/stats/total', async (req, res) => {
 
   const { data, error } = await supabase
     .from('burns')
-    .select('tokens_burned')
+    .select('tokens_burned, agent_name')
     .gte('recorded_at', since.toISOString())
 
   if (error) return res.status(500).json({ error: error.message })
 
-  const total = (data ?? []).reduce((s, r) => s + Number(r.tokens_burned), 0)
+  const total = (data ?? [])
+    .filter(r => isRealAI(r.agent_name))
+    .reduce((s, r) => s + Number(r.tokens_burned), 0)
   res.json({ tokens_wasted_today: total })
 })
 
