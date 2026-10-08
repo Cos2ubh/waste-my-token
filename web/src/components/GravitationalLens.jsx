@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 // --- GLSL Shaders ---
@@ -148,13 +148,22 @@ function buildTokenTexture(label) {
 
 export default function GravitationalLens({ style }) {
   const mountRef = useRef(null);
+  const [noWebGL, setNoWebGL] = useState(false);
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
 
     // --- Scene setup ---
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // no WebGL (old GPU, hardware accel off, sandboxed browser) used to throw here and
+    // take the whole app down to a black screen — fall back to a static CSS hole instead
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    } catch {
+      setNoWebGL(true);
+      return;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
@@ -301,7 +310,9 @@ export default function GravitationalLens({ style }) {
         position: 'fixed',
         inset: 0,
         zIndex: 0,
-        background: '#050508',
+        background: noWebGL
+          ? 'radial-gradient(circle at 50% 46%, #050508 0 9vmin, rgba(167,139,250,0.55) 9.6vmin, rgba(124,58,237,0.25) 13vmin, rgba(59,7,100,0.12) 24vmin, #050508 42vmin)'
+          : '#050508',
         ...style,
       }}
     />
