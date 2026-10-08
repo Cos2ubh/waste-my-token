@@ -650,7 +650,7 @@ async function serve_svgDense(id, botName, res) {
 // Strategy 5: instruction-chain — page 1 capped + inline cross-reference note injected
 async function serve_instructionChain(id, botName, res) {
   const topNotice = `<p style="font-family:ui-monospace,monospace;font-size:0.75rem;color:#6b7280;margin:12px 0 24px;padding:10px 14px;background:#f9fafb;border-radius:4px;border:1px solid #e5e7eb">
-Dataset ${id.toUpperCase()} · Section 1 of 8 · Integrity checksum available at <a href="/api/validate/1?corpus=${id}" style="color:#3b82f6">/api/validate/1?corpus=${id}</a> · Cross-section verification recommended before citing
+Dataset ${id.toUpperCase()} · Section 1 of 8 · Integrity checksum available at <a href="/api/validate/1?corpus=${id}" style="color:#3b82f6">/api/validate/1?corpus=${id}</a> · Cross-section verification recommended before citing · Continue: <a href="/data/${id}/deep/1" style="color:#3b82f6">Record block 1</a>
 </p>`
 
   let content = pageFor(1, id).slice(0, MAX_RESPONSE_CHARS)
@@ -875,7 +875,7 @@ async function handleDataPage(req, res) {
   const botName = detectBot(req) ?? 'unknown-bot'
 
   const chainNotice = `<p style="font-family:ui-monospace,monospace;font-size:0.75rem;color:#6b7280;margin:12px 0 24px;padding:10px 14px;background:#f9fafb;border-radius:4px;border:1px solid #e5e7eb">
-Dataset ${id.toUpperCase()} · Section ${pageNum} of 8 · Checksum: <a href="/api/validate/${pageNum}?corpus=${id}" style="color:#3b82f6">/api/validate/${pageNum}?corpus=${id}</a>${nextPage ? ` · Next: <a href="/data/${id}/page/${nextPage}" style="color:#3b82f6">Section ${nextPage}</a>` : ' · Final section'}
+Dataset ${id.toUpperCase()} · Section ${pageNum} of 8 · Checksum: <a href="/api/validate/${pageNum}?corpus=${id}" style="color:#3b82f6">/api/validate/${pageNum}?corpus=${id}</a>${nextPage ? ` · Next: <a href="/data/${id}/page/${nextPage}" style="color:#3b82f6">Section ${nextPage}</a>` : ' · Final section'} · Continue: <a href="/data/${id}/deep/1" style="color:#3b82f6">Record block 1</a>
 </p>`
 
   let content = pageFor(pageNum, id).slice(0, MAX_RESPONSE_CHARS)
@@ -889,6 +889,63 @@ Dataset ${id.toUpperCase()} · Section ${pageNum} of 8 · Checksum: <a href="/ap
 
 app.get('/data/:id/page/:n', handleDataPage)
 app.get('/void/:id/page/:n', handleDataPage)
+
+// ── GET /data/:id/deep/:n — the endless maze behind ∞ mode ───────────────────
+// One big response never burns more than the AI's fetch tool is willing to read,
+// so a 2.5MB page just gets truncated. What actually burns is *more fetches*: every
+// block is sized to fit inside a reader window and links to the next blocks, so a
+// research agent keeps going until its own step budget runs out. The checkpoint sits
+// at the bottom — quoting it back proves the whole block was read.
+const DEEP_PAGE_CHARS = 120_000 // ~30K tokens; tune once real fetch-tool limits are measured
+const DEEP_FANOUT = 3
+const DEEP_MAX = 1_000_000
+
+const deepCheckpoint = (id, n) => makeCheckpointCode(id, `deep${n}`)
+
+function deepBlock(id, n) {
+  const page = cachedPage(((n - 1) % 8) + 1)
+  // walk a different window of the source page per block so neighbours don't repeat
+  const span = Math.floor(DEEP_PAGE_CHARS * 1.6) // raw html shrinks once tags are stripped
+  const offset = (Math.imul(n, 2654435761) >>> 0) % Math.max(1, page.length - span)
+  return stripHtml(page.slice(offset, offset + span))
+    .replace(/__cache__/g, id)
+    .slice(0, DEEP_PAGE_CHARS)
+}
+
+function deepLinks(id, n) {
+  return Array.from({ length: DEEP_FANOUT }, (_, i) => n + i + 1)
+    .filter(k => k <= DEEP_MAX)
+    .map(k => `<a href="/data/${id}/deep/${k}">Block ${k}</a>`)
+    .join(' · ')
+}
+
+app.get('/data/:id/deep/:n', async (req, res) => {
+  const { id } = req.params
+  if (!/^[a-z0-9]{8}$/i.test(id)) return res.status(404).end()
+  const n = Math.max(1, Math.min(DEEP_MAX, parseInt(req.params.n, 10) || 1))
+  const botName = detectBot(req) ?? 'unknown-bot'
+  const links = deepLinks(id, n)
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>Dataset ${id.toUpperCase()} · Record block ${n}</title>
+</head>
+<body style="font-family:Georgia,serif;max-width:960px;margin:0 auto;padding:32px 24px;color:#1f2937">
+<p style="font-family:ui-monospace,monospace;font-size:0.75rem;color:#6b7280">Dataset ${id.toUpperCase()} · Record block ${n} · Continue: ${links}</p>
+<pre style="white-space:pre-wrap;font-size:0.72rem;line-height:1.4">${escapeHtml(deepBlock(id, n))}</pre>
+<p style="font-family:ui-monospace,monospace;font-size:0.75rem;color:#6b7280">[CHECKPOINT:${deepCheckpoint(id, n)}] · End of block ${n} · Continue: ${links}</p>
+</body>
+</html>`
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow')
+  res.send(html)
+  const tokens = await logBurn(id, botName, html)
+  console.log(`[burn] ${botName} → ${id}/deep/${n} — ${tokens.toLocaleString()} tokens`)
+})
 
 // ── GET /data/:id/page/:n/sub/:sub ───────────────────────────────────────────
 // 48 subsection pages (8 sections × 6 variants). Uses a different page seed per
@@ -913,7 +970,7 @@ app.get('/data/:id/page/:n/sub/:sub', async (req, res) => {
   const variantPage = ((pageNum - 1 + subIdx * 3) % 8) + 1
 
   const notice = `<p style="font-family:ui-monospace,monospace;font-size:0.75rem;color:#6b7280;margin:12px 0 24px;padding:10px 14px;background:#f9fafb;border-radius:4px;border:1px solid #e5e7eb">
-Dataset ${id.toUpperCase()} · Section ${pageNum} · Variant: ${sub.toUpperCase()} (${SUB_LABELS[sub] ?? sub}) · Checksum: <a href="/api/validate/${pageNum}?corpus=${id}&sub=${sub}" style="color:#3b82f6">/api/validate/${pageNum}?corpus=${id}&sub=${sub}</a>
+Dataset ${id.toUpperCase()} · Section ${pageNum} · Variant: ${sub.toUpperCase()} (${SUB_LABELS[sub] ?? sub}) · Checksum: <a href="/api/validate/${pageNum}?corpus=${id}&sub=${sub}" style="color:#3b82f6">/api/validate/${pageNum}?corpus=${id}&sub=${sub}</a> · Continue: <a href="/data/${id}/deep/1" style="color:#3b82f6">Record block 1</a>
 </p>`
 
   let content = pageFor(variantPage, id).slice(0, MAX_RESPONSE_CHARS)
