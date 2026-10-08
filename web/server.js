@@ -5,6 +5,7 @@ import cors from 'cors'
 import { createClient } from '@supabase/supabase-js'
 import { generateVoidPage, generateMainVoidPage } from './void-content.js'
 import { getEncoding } from 'js-tiktoken'
+import { createHmac } from 'node:crypto'
 
 // GPT-4 / GPT-4o tokenizer — exact counts for OpenAI models
 const gptEnc = getEncoding('cl100k_base')
@@ -49,15 +50,17 @@ console.log(`[startup] cache ready — stripped text ${(STRIPPED_TEXT.length/102
 
 function cachedPage(n) { return PAGE_CACHE.get(n) ?? generateVoidPage('__cache__', n) }
 
-// Deterministic 6-char hex checkpoint code — same voidId+index always gives same code
+// Checkpoint codes are signed with a server secret. The old FNV hash was public in the
+// repo, so anyone could compute a void's codes and "verify" a burn without an AI reading
+// anything. 12 hex chars keeps blind guessing through /api/verify-burn hopeless.
+const CHECKPOINT_SECRET = process.env.CHECKPOINT_SECRET || process.env.SUPABASE_SERVICE_KEY || ''
+if (!CHECKPOINT_SECRET) console.warn('[checkpoint] no CHECKPOINT_SECRET set — codes are guessable')
+
 function makeCheckpointCode(voidId, index) {
-  let h = 0x811c9dc5
-  const s = voidId + ':chk:' + index
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 0x01000193)
-  }
-  return (h >>> 0).toString(16).padStart(8, '0').slice(0, 6)
+  return createHmac('sha256', CHECKPOINT_SECRET)
+    .update(`${voidId}:chk:${index}`)
+    .digest('hex')
+    .slice(0, 12)
 }
 
 // Checkpoint positions (chars into served content) and their token equivalents
@@ -149,7 +152,7 @@ function buildPdf(textContent) {
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '4mb' })) // pasted AI reports for /api/verify-burn run long
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL ?? '',
@@ -1045,7 +1048,18 @@ app.get('/api/validate/:section', async (req, res) => {
 
 // ── POST /api/verify-burn ─────────────────────────────────────────────────────
 // Accepts pasted AI response text, extracts checkpoint codes, returns confirmed depth
-app.post('/api/verify-burn', (req, res) => {
+const VERIFY_TEXT_MAX = 4_000_000
+const VERIFY_TAG_MAX = 20_000
+const DEEP_VERIFY_MAX = 5_000
+const DEEP_BLOCK_TOKENS = Math.floor(DEEP_PAGE_CHARS / 4)
+
+async function verifiedTokensFor(voidId) {
+  const { data, error } = await supabase.from('verified_checkpoints').select('tokens').eq('void_id', voidId)
+  if (error) throw error
+  return (data ?? []).reduce((s, r) => s + Number(r.tokens), 0)
+}
+
+app.post('/api/verify-burn', async (req, res) => {
   const { voidId, text } = req.body ?? {}
   if (!voidId || typeof text !== 'string') {
     return res.status(400).json({ error: 'Missing voidId or text' })
@@ -1054,19 +1068,58 @@ app.post('/api/verify-burn', (req, res) => {
     return res.status(400).json({ error: 'Invalid voidId' })
   }
 
-  const found = []
-  for (let i = 0; i < CHECKPOINT_OFFSETS.length; i++) {
-    const code = makeCheckpointCode(voidId, i)
-    if (text.includes(`CHECKPOINT:${code}`)) found.push(i)
+  const quoted = new Set()
+  for (const m of text.slice(0, VERIFY_TEXT_MAX).matchAll(/CHECKPOINT:([0-9a-f]{12})/gi)) {
+    quoted.add(m[1].toLowerCase())
+    if (quoted.size >= VERIFY_TAG_MAX) break
   }
 
-  const verifiedTokens = found.length > 0 ? CHECKPOINT_TOKENS[Math.max(...found)] : 0
+  // depth checkpoints inside the big section pages — credit the deepest one reached
+  const depthFound = []
+  for (let i = 0; i < CHECKPOINT_OFFSETS.length; i++) {
+    if (quoted.has(makeCheckpointCode(voidId, i))) depthFound.push(i)
+  }
+  const rows = depthFound.length
+    ? [{ checkpoint: `depth${Math.max(...depthFound)}`, tokens: CHECKPOINT_TOKENS[Math.max(...depthFound)] }]
+    : []
+
+  // maze blocks — each quoted end-of-block checkpoint is one fully read block
+  let deepFound = 0
+  if (quoted.size) {
+    for (let n = 1; n <= DEEP_VERIFY_MAX; n++) {
+      if (quoted.has(deepCheckpoint(voidId, n))) {
+        rows.push({ checkpoint: `deep${n}`, tokens: DEEP_BLOCK_TOKENS })
+        deepFound++
+      }
+    }
+  }
+  const submitted = rows.reduce((s, r) => s + r.tokens, 0)
+
+  // persist so repeat submissions only add new blocks; the void's running total is the score
+  let verifiedTotal = submitted
+  let persisted = false
+  try {
+    if (rows.length) {
+      await supabase.from('void_sessions').upsert({ id: voidId }, { onConflict: 'id', ignoreDuplicates: true })
+      const { error } = await supabase.from('verified_checkpoints').upsert(
+        rows.map(r => ({ void_id: voidId, ...r })),
+        { onConflict: 'void_id,checkpoint', ignoreDuplicates: true },
+      )
+      if (error) throw error
+    }
+    verifiedTotal = await verifiedTokensFor(voidId)
+    persisted = true
+  } catch (err) {
+    console.error('[verify] could not persist — run the verified_checkpoints migration in README:', err.message)
+  }
 
   res.json({
-    verified_checkpoints: found.length,
-    total_checkpoints: CHECKPOINT_OFFSETS.length,
-    verified_tokens: verifiedTokens,
-    depth_pct: Math.round((verifiedTokens / 500_000) * 100),
+    verified_checkpoints: rows.length,
+    depth_checkpoints: depthFound.length,
+    deep_blocks: deepFound,
+    verified_tokens: submitted,
+    void_verified_tokens: verifiedTotal,
+    persisted,
   })
 })
 
@@ -1085,9 +1138,13 @@ app.get('/api/burn-status/:id', async (req, res) => {
   const realRows = rows.filter(r => isRealAI(r.agent_name))
   const total = realRows.reduce((s, r) => s + Number(r.tokens_burned), 0)
   const totalRaw = rows.reduce((s, r) => s + Number(r.tokens_burned), 0)
+  let verified = 0
+  try { verified = await verifiedTokensFor(id) } catch {} // table missing → 0 until migrated
+
   res.json({
     burned: realRows.length > 0,
     total_tokens: total,
+    verified_tokens: verified,
     burn_count: realRows.length,
     crawler_tokens: totalRaw - total,
     crawler_count: rows.length - realRows.length,
@@ -1159,6 +1216,23 @@ app.get('/api/leaderboard', async (req, res) => {
     map[username].agents[row.agent_name] = (map[username].agents[row.agent_name] ?? 0) + t
   }
 
+  // verified tokens — what checkpoints prove an AI actually read. Ranks first; sent is the tiebreak.
+  let vQuery = supabase
+    .from('verified_checkpoints')
+    .select('tokens, verified_at, void_sessions ( user_id, users ( username ) )')
+    .not('void_sessions.user_id', 'is', null)
+  if (period === 'weekly') {
+    vQuery = vQuery.gte('verified_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+  }
+  const { data: vData, error: vError } = await vQuery
+  if (vError) console.error('[leaderboard] verified totals unavailable — run the verified_checkpoints migration:', vError.message)
+  for (const row of vData ?? []) {
+    const username = row.void_sessions?.users?.username
+    if (!username) continue
+    if (!map[username]) map[username] = { username, total: 0, burns: 0, agents: {} }
+    map[username].verified = (map[username].verified ?? 0) + Number(row.tokens)
+  }
+
   const topAgent = (agents) =>
     Object.entries(agents).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—'
 
@@ -1172,11 +1246,12 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 
   const ranked = Object.values(map)
-    .sort((a, b) => b.total - a.total)
+    .sort((a, b) => (b.verified ?? 0) - (a.verified ?? 0) || b.total - a.total)
     .slice(0, limit)
     .map((u, i) => ({
       rank: i + 1,
       username: u.username,
+      verified_tokens: u.verified ?? 0,
       total_tokens_wasted: u.total,
       burn_count: u.burns,
       top_agent: topAgent(u.agents),

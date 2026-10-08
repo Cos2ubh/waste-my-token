@@ -162,7 +162,23 @@ create table public.strategy_state (
 );
 
 alter table public.strategy_state enable row level security;
+
+-- Verified burns — one row per checkpoint an AI quoted back via /api/verify-burn.
+-- The leaderboard ranks on these (tokens an AI provably read), with raw sent
+-- tokens as the tiebreak. Server-only, same as strategy_state.
+create table public.verified_checkpoints (
+  void_id     text not null references public.void_sessions(id) on delete cascade,
+  checkpoint  text not null,
+  tokens      int  not null,
+  verified_at timestamptz not null default now(),
+  primary key (void_id, checkpoint)
+);
+
+alter table public.verified_checkpoints enable row level security;
 ```
+
+Set `CHECKPOINT_SECRET` (any long random string) on Railway. Checkpoint codes are
+signed with it; without it the server falls back to `SUPABASE_SERVICE_KEY`.
 
 ---
 
