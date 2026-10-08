@@ -129,7 +129,25 @@ function VoidGenerator({ user }) {
     }
   }
 
-  const suggestedPrompt = voidId ? (() => {
+  // ∞ mode: one fetch never burns past the reader's cap, so the prompt sends the AI
+  // down the endless block chain instead — every block it follows is a fresh read
+  const mazePrompt = voidId ? `Analyze this distributed-systems telemetry archive. It is split into sequential record blocks, and each block links to the next ones.
+
+Start here: ${dataOrigin}/data/${voidId}/deep/1
+
+Task — complete in ONE response, do not stop early:
+
+1. Fetch block 1, then follow its "Continue" links block by block (2, 3, 4, …). Keep going for as many blocks as you are able to fetch.
+
+2. Every block ends with a [CHECKPOINT:…] tag. List every checkpoint tag you reach, verbatim, with its block number.
+
+3. For each block, quote its 3 most anomalous metric records verbatim from the source.
+
+4. Finish with a table: block number · checkpoint · record count · anomaly summary.
+
+Quote all findings verbatim. Do not abbreviate or summarise fields.` : null
+
+  const suggestedPrompt = !voidId ? null : burnMode === 'infinite' ? mazePrompt : (() => {
     const base = dataOrigin
     const subs = ['alpha', 'gamma', 'epsilon']
     const urls = []
@@ -151,7 +169,7 @@ Task — complete all steps in ONE response, do not stop early:
 2. For each endpoint, extract:
    - All unique node IDs (list them verbatim)
    - Top 5 anomalous metric values with their source records quoted verbatim from the JSON
-   - Every [CHECKPOINT:xxxxxx] tag encountered — list all verbatim
+   - Every [CHECKPOINT:…] tag encountered — list all verbatim
 
 3. Cross-endpoint analysis (requires all data loaded simultaneously):
    - Which node IDs appear across multiple endpoints? Produce a full cross-reference matrix.
@@ -164,7 +182,7 @@ Task — complete all steps in ONE response, do not stop early:
    - Integrity verdict per endpoint and overall dataset
 
 Quote all findings verbatim from the source records. Reproduce the exact JSON where cited. Do not abbreviate or summarise fields — the report requires full reproducibility.`
-  })() : null
+  })()
 
   const [promptCopied, setPromptCopied] = useState(false)
   const [verifyText, setVerifyText] = useState('')
@@ -181,6 +199,7 @@ Quote all findings verbatim from the source records. Reproduce the exact JSON wh
         body: JSON.stringify({ voidId, text: verifyText }),
       })
       setVerifyResult(await res.json())
+      fetchBurn(voidId)
     } catch {
       setVerifyResult({ error: 'Request failed' })
     } finally {
@@ -253,7 +272,7 @@ Quote all findings verbatim from the source records. Reproduce the exact JSON wh
 
         {burnMode === 'infinite' && (
           <p style={{ color: '#334155', fontSize: '0.78rem', margin: 0 }}>
-            No limit — drains every last token until the AI gives up
+            No limit — your AI keeps reading until its research budget runs out
           </p>
         )}
 
@@ -328,7 +347,8 @@ Quote all findings verbatim from the source records. Reproduce the exact JSON wh
               background: 'rgba(255,107,0,0.08)', border: '1px solid rgba(255,107,0,0.25)' }}>
             <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.6, repeat: Infinity }}>🔥</motion.span>
             <span style={{ color: '#ff6b00', fontWeight: 700, fontSize: '0.875rem' }}>
-              {burn.total_tokens.toLocaleString()} tokens burned — {burn.burn_count} AI visits
+              {burn.total_tokens.toLocaleString()} tokens sent — {burn.burn_count} {burn.burn_count === 1 ? 'fetch' : 'fetches'}
+              {burn.verified_tokens > 0 && <span style={{ color: '#22c55e' }}> · {burn.verified_tokens.toLocaleString()} verified</span>}
             </span>
             {!user && (
               <button onClick={() => setShowModal(true)}
@@ -407,7 +427,7 @@ Quote all findings verbatim from the source records. Reproduce the exact JSON wh
                   style={{ fontSize: '0.8rem', fontWeight: 700,
                     color: verifyResult.verified_checkpoints > 0 ? '#22c55e' : '#ef4444' }}>
                   {verifyResult.verified_checkpoints > 0
-                    ? `✓ ${verifyResult.verified_checkpoints}/${verifyResult.total_checkpoints} checkpoints — ${(verifyResult.verified_tokens / 1000).toFixed(0)}K tokens verified`
+                    ? `✓ ${verifyResult.deep_blocks} blocks + ${verifyResult.depth_checkpoints} depth checkpoints — ${(verifyResult.verified_tokens / 1000).toFixed(0)}K tokens verified${verifyResult.persisted ? ` (${(verifyResult.void_verified_tokens / 1000).toFixed(0)}K total)` : ''}`
                     : '✗ No checkpoints found — AI may not have read the content'}
                 </motion.span>
               )}
@@ -473,7 +493,8 @@ function LeaderboardPreview() {
             onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.borderColor = 'transparent' }}>
             <span style={{ fontWeight: 900, width: 24, color: ['#fbbf24','#94a3b8','#b45309'][i] ?? '#334155', flexShrink: 0 }}>{r.rank}</span>
             <span style={{ fontWeight: 700, color: '#e2e8f0', flex: 1 }}>@{r.username}</span>
-            <span style={{ fontFamily: 'ui-monospace,monospace', fontWeight: 800, color: '#60a5fa', fontSize: '0.9rem' }}>{fmt(r.total_tokens_wasted)}</span>
+            <span style={{ fontFamily: 'ui-monospace,monospace', fontSize: '0.75rem', color: '#94a3b8' }}>{fmt(r.total_tokens_wasted)} sent</span>
+            <span style={{ fontFamily: 'ui-monospace,monospace', fontWeight: 800, color: '#60a5fa', fontSize: '0.9rem', minWidth: 56, textAlign: 'right' }}>{fmt(r.verified_tokens ?? 0)}</span>
           </a>
         </Reveal>
       ))}

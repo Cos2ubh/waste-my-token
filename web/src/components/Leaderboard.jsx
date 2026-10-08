@@ -44,7 +44,7 @@ export default function Leaderboard({ rows = [], loading = false, preview = fals
           <tr style={{ textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <th style={{ padding: '14px 16px', fontWeight: 600, color: '#475569', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', width: 64 }}>#</th>
             <th style={{ padding: '14px 16px', fontWeight: 600, color: '#475569', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>User</th>
-            <th style={{ padding: '14px 16px', fontWeight: 600, color: '#475569', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', textAlign: 'right' }}>Tokens Wasted</th>
+            <th style={{ padding: '14px 16px', fontWeight: 600, color: '#475569', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', textAlign: 'right' }}>Verified</th>
             {!preview && <th style={{ padding: '14px 16px', fontWeight: 600, color: '#475569', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' }} className="hidden md:table-cell">Top Agent</th>}
             {!preview && <th style={{ padding: '14px 16px', fontWeight: 600, color: '#475569', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase' }} className="hidden lg:table-cell">Badges</th>}
           </tr>
@@ -88,8 +88,11 @@ export default function Leaderboard({ rows = [], loading = false, preview = fals
                     WebkitBackgroundClip: 'text', backgroundClip: 'text',
                     WebkitTextFillColor: 'transparent', color: 'transparent',
                   }}>
-                    {formatTokens(row.total_tokens_wasted)}
+                    {formatTokens(row.verified_tokens ?? 0)}
                   </span>
+                  <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#94a3b8', marginTop: 2 }}>
+                    {formatTokens(row.total_tokens_wasted)} sent
+                  </div>
                 </td>
                 {!preview && (
                   <td style={{ padding: '16px 16px' }} className="hidden md:table-cell">
