@@ -241,7 +241,8 @@ Quote all findings verbatim from the source records. Reproduce the exact JSON wh
             <button key={m} onClick={() => setBurnMode(m)} style={{
               padding: '8px 20px', borderRadius: 10, fontWeight: 700, fontSize: '0.85rem',
               cursor: 'pointer', transition: 'all 0.2s',
-              background: burnMode === m ? 'rgba(124,58,237,0.25)' : 'rgba(255,255,255,0.04)',
+              background: burnMode === m ? 'rgba(124,58,237,0.25)' : 'rgba(5,5,8,0.6)',
+              backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', // sits over the bright disk
               border: `1px solid ${burnMode === m ? 'rgba(124,58,237,0.6)' : 'rgba(255,255,255,0.08)'}`,
               color: burnMode === m ? '#a78bfa' : '#475569',
             }}>
@@ -584,8 +585,8 @@ export default function Landing({ user, onAuthClick, onLogout }) {
 
           <motion.p initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.45, ease: EXPO }}
-            style={{ color: '#64748b', marginTop: 20, fontSize: 'clamp(0.95rem, 1.8vw, 1.2rem)',
-              lineHeight: 1.7, maxWidth: 480 }}>
+            style={{ color: '#94a3b8', marginTop: 20, fontSize: 'clamp(0.95rem, 1.8vw, 1.2rem)',
+              lineHeight: 1.7, maxWidth: 480, textShadow: '0 1px 14px rgba(5,5,8,0.95), 0 0 4px rgba(5,5,8,0.9)' }}>
             It burns your tokens. You get the rank.<br />Everyone watches.
           </motion.p>
 
