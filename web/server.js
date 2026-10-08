@@ -365,6 +365,7 @@ async function serveInfinite(id, botName, res) {
     clearTimeout(maxTimer)
     const delta = totalChars - lastLoggedChars
     if (delta > 0) logBurn(id, botName, delta)
+    recordOutcome(botName, Math.floor(totalChars / 4)) // lets a dud stream rotate away like any other strategy
     console.log(`[infinite:${reason}] ${botName} → ${id} — ${Math.floor(totalChars/4).toLocaleString()} tokens total`)
   }
 
@@ -726,8 +727,6 @@ ${subLinks.join('\n')}
 }
 
 // Strategy 7: chunked-stream — delegates to existing serveInfinite
-// NOTE: serveInfinite does not call recordOutcome today (pre-existing, unrelated to
-// this fix) — this strategy never rotates away from itself even if yield is poor.
 async function serve_chunkedStream(id, botName, res) {
   serveInfinite(id, botName, res)
 }
