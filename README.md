@@ -147,6 +147,21 @@ create policy "public user read" on public.users for select using (true);
 create policy "own user row" on public.users for all using (auth.uid() = id);
 create policy "void sessions public" on public.void_sessions for all using (true);
 create policy "burns public" on public.burns for all using (true);
+
+-- Adaptive Strategy Engine state (server.js) — lets the void content generator
+-- remember which serving strategy works best per AI agent across restarts/redeploys.
+-- Server-only: written with SUPABASE_SERVICE_KEY, which bypasses RLS. No policy is
+-- added on purpose, so the public anon key gets no access at all.
+create table public.strategy_state (
+  agent_key     text primary key,
+  profile       text not null,
+  current_index int not null default 0,
+  scores        jsonb not null default '[]'::jsonb,
+  visit_count   int not null default 0,
+  updated_at    timestamptz not null default now()
+);
+
+alter table public.strategy_state enable row level security;
 ```
 
 ---

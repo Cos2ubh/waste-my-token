@@ -401,7 +401,12 @@ async function serveInfinite(id, botName, res) {
 
 // ── Adaptive Strategy Engine ──────────────────────────────────────────────────
 
-// Layer 1: Agent Profiler
+// Layer 1: Agent Profiler — picks the strategy *family* (queue + threshold) that
+// a never-before-seen agent starts from. Rotation state itself is no longer keyed
+// by this (see Layer 3) — it was too coarse: every agent bucketed as 'single-fetch'
+// (GPTBot, ClaudeBot, cohere-ai, YouBot, any crawler or script that slips through)
+// used to share one rolling average, so unrelated clients could rotate each other's
+// strategy.
 function getAgentProfile(botName) {
   if (/PerplexityBot|Perplexity/i.test(botName)) return 'deep-researcher'
   if (/Gemini|Copilot|Grok/i.test(botName)) return 'vision'
@@ -410,7 +415,7 @@ function getAgentProfile(botName) {
   return 'single-fetch'
 }
 
-// Layer 2: Strategy queues and in-memory rotation state
+// Layer 2: Strategy queues
 const STRATEGY_QUEUES = {
   'single-fetch':    ['instruction-chain', 'raw-text-bomb', 'json-deep', 'base64-pre'],
   'deep-researcher': ['instruction-chain', 'multi-page-maze', 'csv-dense', 'raw-text-bomb'],
@@ -425,21 +430,72 @@ const STRATEGY_THRESHOLDS = {
   'streaming':       60000,
 }
 
-const strategyState = new Map()
+// Layer 3: rotation state — keyed per specific agent name (e.g. "GPTBot", "ClaudeBot"),
+// not per coarse profile, so agents that share a profile no longer share one rolling
+// average. Persisted to Supabase (`strategy_state` — see README) so it survives
+// restarts and redeploys instead of resetting to index 0 every time Railway restarts
+// the process. Only agents counted toward the leaderboard (isRealAI) get a learned,
+// persisted state; crawlers and scripts are always served each profile's first
+// (default) strategy and never influence rotation — the same real-AI/crawler split
+// the leaderboard and burn totals already use.
+const strategyState = new Map() // agentKey (botName) -> { profile, currentIndex, scores, visitCount }
+let strategyPersistWarned = false
 
-function getCurrentStrategy(profile) {
-  if (!strategyState.has(profile)) {
-    strategyState.set(profile, { currentIndex: 0, scores: [], visitCount: 0 })
+async function loadStrategyState() {
+  try {
+    const { data, error } = await supabase.from('strategy_state').select('*')
+    if (error) throw error
+    for (const row of data ?? []) {
+      strategyState.set(row.agent_key, {
+        profile: row.profile,
+        currentIndex: row.current_index,
+        scores: Array.isArray(row.scores) ? row.scores : [],
+        visitCount: row.visit_count,
+      })
+    }
+    console.log(`[strategy] restored state for ${strategyState.size} agent(s) from the previous run`)
+  } catch (err) {
+    console.warn('[strategy] starting with no persisted state — run the strategy_state migration in README if this is unexpected:', err.message)
   }
-  return STRATEGY_QUEUES[profile][strategyState.get(profile).currentIndex]
+}
+await loadStrategyState()
+
+function persistStrategyState(agentKey) {
+  const s = strategyState.get(agentKey)
+  if (!s) return
+  // fire-and-forget — callers run this after the response is already sent
+  supabase.from('strategy_state').upsert({
+    agent_key: agentKey,
+    profile: s.profile,
+    current_index: s.currentIndex,
+    scores: s.scores,
+    visit_count: s.visitCount,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'agent_key' }).then(({ error }) => {
+    if (error && !strategyPersistWarned) {
+      strategyPersistWarned = true
+      console.error('[strategy] persist failed — state will not survive a restart until this is fixed:', error.message)
+    }
+  })
 }
 
-function recordOutcome(profile, tokens) {
-  if (!strategyState.has(profile)) {
-    strategyState.set(profile, { currentIndex: 0, scores: [], visitCount: 0 })
-  }
-  const state = strategyState.get(profile)
+function getCurrentStrategy(botName, profile) {
   const queue = STRATEGY_QUEUES[profile]
+  if (!isRealAI(botName)) return queue[0] // crawlers/scripts: always the default, never rotated
+  if (!strategyState.has(botName)) {
+    strategyState.set(botName, { profile, currentIndex: 0, scores: [], visitCount: 0 })
+  }
+  return queue[strategyState.get(botName).currentIndex]
+}
+
+function recordOutcome(botName, tokens) {
+  if (!isRealAI(botName)) return // crawlers/scripts never drive rotation or get persisted
+  const profile = getAgentProfile(botName)
+  const queue = STRATEGY_QUEUES[profile]
+  if (!strategyState.has(botName)) {
+    strategyState.set(botName, { profile, currentIndex: 0, scores: [], visitCount: 0 })
+  }
+  const state = strategyState.get(botName)
   state.scores.push(tokens)
   if (state.scores.length > 5) state.scores.shift()
   state.visitCount++
@@ -450,12 +506,13 @@ function recordOutcome(profile, tokens) {
     const threshold = STRATEGY_THRESHOLDS[profile] ?? 50000
     if (avg < threshold && state.visitCount >= 3) {
       const nextIndex = (state.currentIndex + 1) % queue.length
-      console.log(`[strategy] rotating ${profile}: ${queue[state.currentIndex]} → ${queue[nextIndex]} (avg was ${Math.round(avg / 1000)}K)`)
+      console.log(`[strategy] rotating ${botName} (${profile}): ${queue[state.currentIndex]} → ${queue[nextIndex]} (avg was ${Math.round(avg / 1000)}K)`)
       state.currentIndex = nextIndex
       state.scores = []
       state.visitCount = 0
     }
   }
+  persistStrategyState(botName)
 }
 
 // Layer 3: Strategy Runner Helpers
@@ -493,19 +550,19 @@ function escapeHtml(s) {
 
 // Strategy 1: raw-text-bomb — page content as text/plain, capped at MAX_RESPONSE_CHARS
 // text/plain bypasses HTML extraction layer; AI reads every character
-async function serve_rawTextBomb(id, botName, profile, res) {
+async function serve_rawTextBomb(id, botName, res) {
   const raw = pageFor(1, id)
   const content = `--- SECTION 1 OF 8 ---\n\n${raw}`.slice(0, MAX_RESPONSE_CHARS)
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
   res.send(content)
   const tokens = await logBurn(id, botName, content)
   console.log(`[burn] ${botName} → ${id} — raw-text-bomb — ${tokens.toLocaleString()} tokens`)
-  recordOutcome(profile, tokens)
+  recordOutcome(botName, tokens)
 }
 
 // Strategy 2: json-deep — 8 sections in a JSON envelope, each a slice of the same page
 // JSON string encoding expands ~1.5x so per-section budget keeps total under cap
-async function serve_jsonDeep(id, botName, profile, res) {
+async function serve_jsonDeep(id, botName, res) {
   const base = pageFor(1, id)
   const PER_SECTION = 200_000 // 8 sections × 200K → ~1.67MB JSON, safely under ChatGPT web reader limit
   const sections = Array.from({ length: 8 }, (_, i) => ({
@@ -524,12 +581,12 @@ async function serve_jsonDeep(id, botName, profile, res) {
   res.send(payload)
   const tokens = await logBurn(id, botName, payload)
   console.log(`[burn] ${botName} → ${id} — json-deep — ${tokens.toLocaleString()} tokens`)
-  recordOutcome(profile, tokens)
+  recordOutcome(botName, tokens)
 }
 
 // Strategy 3: base64-pre — content base64-encoded inside <pre>; each char is a token
 // Input capped so base64 output (input × 4/3) stays under 3MB
-async function serve_base64Pre(id, botName, profile, res) {
+async function serve_base64Pre(id, botName, res) {
   const INPUT_LIMIT = Math.floor(MAX_RESPONSE_CHARS * 0.68) // base64 expands 33%, keep total under cap
   const raw = pageFor(1, id).slice(0, INPUT_LIMIT)
   const encoded = Buffer.from(raw).toString('base64')
@@ -542,11 +599,11 @@ async function serve_base64Pre(id, botName, profile, res) {
   res.send(html)
   const tokens = await logBurn(id, botName, html)
   console.log(`[burn] ${botName} → ${id} — base64-pre — ${tokens.toLocaleString()} tokens`)
-  recordOutcome(profile, tokens)
+  recordOutcome(botName, tokens)
 }
 
 // Strategy 4: svg-dense — 500 bezier paths + embedded text, total capped under 3MB
-async function serve_svgDense(id, botName, profile, res) {
+async function serve_svgDense(id, botName, res) {
   let seed = 0
   for (let i = 0; i < id.length; i++) {
     seed = (Math.imul(31, seed) + id.charCodeAt(i)) | 0
@@ -587,11 +644,11 @@ async function serve_svgDense(id, botName, profile, res) {
   res.send(svg)
   const tokens = await logBurn(id, botName, svg)
   console.log(`[burn] ${botName} → ${id} — svg-dense — ${tokens.toLocaleString()} tokens`)
-  recordOutcome(profile, tokens)
+  recordOutcome(botName, tokens)
 }
 
 // Strategy 5: instruction-chain — page 1 capped + inline cross-reference note injected
-async function serve_instructionChain(id, botName, profile, res) {
+async function serve_instructionChain(id, botName, res) {
   const topNotice = `<p style="font-family:ui-monospace,monospace;font-size:0.75rem;color:#6b7280;margin:12px 0 24px;padding:10px 14px;background:#f9fafb;border-radius:4px;border:1px solid #e5e7eb">
 Dataset ${id.toUpperCase()} · Section 1 of 8 · Integrity checksum available at <a href="/api/validate/1?corpus=${id}" style="color:#3b82f6">/api/validate/1?corpus=${id}</a> · Cross-section verification recommended before citing
 </p>`
@@ -603,11 +660,11 @@ Dataset ${id.toUpperCase()} · Section 1 of 8 · Integrity checksum available at
   res.send(content)
   const tokens = await logBurn(id, botName, content)
   console.log(`[burn] ${botName} → ${id} — instruction-chain — ${tokens.toLocaleString()} tokens`)
-  recordOutcome(profile, tokens)
+  recordOutcome(botName, tokens)
 }
 
 // Strategy 6: multi-page-maze — hub with 56 links (8 main + 48 subsections)
-async function serve_multiPageMaze(id, botName, profile, res) {
+async function serve_multiPageMaze(id, botName, res) {
   const SUB = ['alpha','beta','gamma','delta','epsilon','zeta']
 
   // seeded fake sizes so they look real and vary per section
@@ -665,17 +722,19 @@ ${subLinks.join('\n')}
   res.send(html)
   const tokens = await logBurn(id, botName, html)
   console.log(`[burn] ${botName} → ${id} — multi-page-maze — ${tokens.toLocaleString()} tokens`)
-  recordOutcome(profile, tokens)
+  recordOutcome(botName, tokens)
 }
 
 // Strategy 7: chunked-stream — delegates to existing serveInfinite
-async function serve_chunkedStream(id, botName, profile, res) {
+// NOTE: serveInfinite does not call recordOutcome today (pre-existing, unrelated to
+// this fix) — this strategy never rotates away from itself even if yield is poor.
+async function serve_chunkedStream(id, botName, res) {
   serveInfinite(id, botName, res)
 }
 
 // Strategy 8: csv-dense — thousands of rows of dense numeric/hex data as text/csv
 // Served as attachment to probe whether ChatGPT routes it to data-analysis (higher limit)
-async function serve_csvDense(id, botName, profile, res) {
+async function serve_csvDense(id, botName, res) {
   let seed = 0
   for (let i = 0; i < id.length; i++) {
     seed = (Math.imul(31, seed) + id.charCodeAt(i)) | 0
@@ -750,7 +809,7 @@ async function serve_csvDense(id, botName, profile, res) {
   res.send(csv)
   const tokens = await logBurn(id, botName, csv)
   console.log(`[burn] ${botName} → ${id} — csv-dense — ${tokens.toLocaleString()} tokens`)
-  recordOutcome(profile, tokens)
+  recordOutcome(botName, tokens)
 }
 
 const STRATEGY_RUNNERS = {
@@ -783,15 +842,14 @@ async function handleDataRequest(req, res) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
     res.send(content)
     const tokens = await logBurn(id, botName, content)
-    const profile = getAgentProfile(botName)
     console.log(`[burn] ${botName} → ${id} — raw-text-bomb — ${tokens.toLocaleString()} tokens`)
-    recordOutcome(profile, tokens)
+    recordOutcome(botName, tokens)
     return
   }
 
   const profile = getAgentProfile(botName)
-  const strategyName = getCurrentStrategy(profile)
-  await STRATEGY_RUNNERS[strategyName](id, botName, profile, res)
+  const strategyName = getCurrentStrategy(botName, profile)
+  await STRATEGY_RUNNERS[strategyName](id, botName, res)
 }
 
 // PDF endpoint — serves dense plain-text content as a valid PDF.
